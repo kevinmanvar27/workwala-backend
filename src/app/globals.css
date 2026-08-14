@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F9F9F9;
+  --foreground: #2D2D2D;
+  /* Brand tokens — overridden dynamically by layout.tsx via DB settings */
+  --primary:      #4A2372;
+  --primary-dark: #3d1d5e;
+  --accent:       #C2185B;
+  --accent-dark:  #a01448;
+  --light-purple: #F3E5F5;
+  --bg-light:     #F9F9F9;
+  --text-dark:    #2D2D2D;
+  --text-muted:   #757575;
+  --border:       #E0E0E0;
+  --success:      #2E7D32;
+  --sidebar-bg:   #2D1B45;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #E0E0E0; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #bdbdbd; }
+
+.sidebar-scroll::-webkit-scrollbar { width: 2px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
+
+/* ── Prose ──────────────────────────────────────────────────── */
+.prose h1 { font-size: 2rem; font-weight: 700; margin-bottom: 1rem; color: #2D2D2D; }
+.prose h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.75rem; color: #2D2D2D; }
+.prose p  { margin-bottom: 1rem; line-height: 1.75; color: #757575; }
+.prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+.prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+.prose a  { color: var(--primary); text-decoration: underline; }
+
+/* ── Admin content area ─────────────────────────────────────── */
+.admin-content {
+  min-height: 100vh;
+  background: #F9F9F9;
+}
+
+/* ── Card ───────────────────────────────────────────────────── */
+.card {
+  background: #fff;
+  border: 1px solid #E0E0E0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+}
+
+/* ── Input base ─────────────────────────────────────────────── */
+.input-base {
+  width: 100%;
+  background: #F9F9F9;
+  border: 1px solid #E0E0E0;
+  border-radius: 10px;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  color: #2D2D2D;
+  transition: border-color 150ms, box-shadow 150ms, background 150ms;
+  outline: none;
+}
+.input-base::placeholder { color: #757575; }
+.input-base:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+  background: #fff;
+}
+
+/* ── Btn primary ────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  background: var(--primary); color: #fff;
+  font-size: 0.875rem; font-weight: 600;
+  padding: 0.625rem 1.25rem;
+  border-radius: 10px;
+  border: none; cursor: pointer;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent);
+  transition: background 150ms, transform 150ms, box-shadow 150ms;
+}
+.btn-primary:hover  { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 30%, transparent); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+/* ── Btn ghost ──────────────────────────────────────────────── */
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  background: transparent; color: #757575;
+  font-size: 0.875rem; font-weight: 500;
+  padding: 0.625rem 1.25rem;
+  border-radius: 10px;
+  border: 1px solid #E0E0E0; cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+.btn-ghost:hover { background: #F9F9F9; color: #2D2D2D; border-color: #bdbdbd; }
+
+/* ── Status badge ───────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.7rem; font-weight: 600;
+  padding: 3px 10px; border-radius: 99px;
+  text-transform: capitalize; letter-spacing: 0.01em;
+}
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* Smooth focus ring */
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ── Dynamic brand helpers used by components ───────────────── */
+/* These let Tailwind arbitrary-value classes like bg-[var(--primary)] work  */
+/* They are also used by the Sidebar and TopBar for active states            */
+.brand-sidebar-bg  { background-color: var(--sidebar-bg) !important; }
+.brand-primary-bg  { background-color: var(--primary) !important; }
+.brand-accent-bg   { background-color: var(--accent) !important; }
+.brand-primary-text { color: var(--primary) !important; }
+.brand-accent-text  { color: var(--accent) !important; }
+.brand-light-bg    { background-color: var(--light-purple) !important; }

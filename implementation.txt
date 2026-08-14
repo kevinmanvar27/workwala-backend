@@ -1,0 +1,18 @@
+Next js basic flow:
+
+mysql datbase name i created is - "next_basic_flow"
+
+Now in this create admin panel there for where it works permission base there.
+role base and permission base there.
+in this i want user module where user crud perform and user access panel base on permission there.
+and in this entire panel make sure there no data is hard deleted make it soft delete always there.
+and also make admin panle ui proffesional there.
+and also make pages module there which we access it publicly there.
+and also make sure login works proper there so do this proper in this and make sure ur changes and implementation works proper there.
+and also in this i want to use mysql database so in this create script that when i run project it migrates and seed data automatically there.
+and for user profile image upload feature add there also store image in prject there and store image folder put in gitignore there.
+and in this add there delete account page there which is publicly accessable there and also there add mail and password for delete account there.
+and in this settings admin panel add general settings like site name, site logo, contact support mail, business mail and also project tagline and all basic settings there.
+other settings like social links, google login and apple login there i wantl, and also i want razorpay payment creadentials there like test and live mode, and also in this mail creadentials add there for send email to user.
+in this admin panel also create there dashboard page as well as.
+so do this proper and make sure ur changes not affect any working functionality there so do it proper as well as....
