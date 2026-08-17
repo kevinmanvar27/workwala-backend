@@ -37,6 +37,19 @@ export async function PUT(req: NextRequest, { params }: Params) {
   try {
     const { name, email, password, role_id, status } = await req.json();
 
+    // Validate required fields
+    if (!name || !email) {
+      return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
+    }
+    // Field length caps
+    if (name.length > 100) {
+      return NextResponse.json({ error: 'Name must be 100 characters or fewer' }, { status: 400 });
+    }
+    // Email format validation — same rule as the create route
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
+    }
+
     const existing = await query<{ id: number }[]>(
       `SELECT id FROM users WHERE id = ? AND deleted_at IS NULL`, [id]
     );
@@ -53,6 +66,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     if (password) {
+      // Enforce same minimum length as the create route
+      if (password.length < 8) {
+        return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+      }
       const hashed = await bcrypt.hash(password, 12);
       await query(
         `UPDATE users SET name=?, email=?, password=?, role_id=?, status=?, updated_at=NOW() WHERE id=?`,

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import sanitizeHtml from 'sanitize-html';
 import { query } from '@/lib/db';
 import type { Metadata } from 'next';
 
@@ -37,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!page) return { title: 'Page Not Found' };
 
-  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'BasicFlow';
+  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'WorkWala';
   const siteUrl  = (settings.site_url || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
   const pageUrl  = `${siteUrl}/pages/${page.slug}`;
   const ogImage  = settings.meta_og_image || '';
@@ -75,7 +76,7 @@ export default async function PublicPageDetail({ params }: Props) {
 
   if (!page) notFound();
 
-  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'BasicFlow';
+  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'WorkWala';
   const siteLogo = settings.site_logo?.trim() || '';
   const siteUrl  = (settings.site_url || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
   const pageUrl  = `${siteUrl}/pages/${page.slug}`;
@@ -153,12 +154,22 @@ export default async function PublicPageDetail({ params }: Props) {
           <div className="mb-8 pb-6 border-b border-[#E0E0E0]">
             <h1 className="text-3xl font-bold text-[#2D2D2D]">{page.title}</h1>
             <p className="text-[#757575] text-sm mt-2">
-              Last updated {new Date(page.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              Last updated {new Date(page.updated_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' })}
             </p>
           </div>
           <div
             className="prose max-w-none text-[#2D2D2D]"
-            dangerouslySetInnerHTML={{ __html: page.content || '' }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content || '', {
+              allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'iframe']),
+              allowedAttributes: {
+                ...sanitizeHtml.defaults.allowedAttributes,
+                'img': ['src', 'alt', 'width', 'height', 'loading'],
+                'a':   ['href', 'target', 'rel'],
+                // Allow iframes only from trusted embed sources (YouTube, Maps)
+                'iframe': ['src', 'width', 'height', 'allowfullscreen', 'frameborder', 'title'],
+              },
+              allowedIframeHostnames: ['www.youtube.com', 'www.google.com'],
+            }) }}
           />
         </div>
       </main>

@@ -41,6 +41,9 @@ export async function POST(req: NextRequest) {
     if (!name || price_per_hour === undefined || price_per_hour === null) {
       return NextResponse.json({ error: 'name and price_per_hour are required' }, { status: 400 });
     }
+    if (name.length > 100) {
+      return NextResponse.json({ error: 'Name must be 100 characters or fewer' }, { status: 400 });
+    }
 
     const slug = slugify(name);
     const existing = await query<any[]>(
@@ -82,6 +85,11 @@ export async function PATCH(req: NextRequest) {
     const { id, name, description, price_per_hour, bg_color, border_color, is_active, sort_order } = body;
 
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+
+    // Length cap on update — same rule as create
+    if (name !== undefined && name.length > 100) {
+      return NextResponse.json({ error: 'Name must be 100 characters or fewer' }, { status: 400 });
+    }
 
     const fields: string[] = [];
     const values: any[] = [];

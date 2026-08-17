@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { signToken } from '@/lib/jwt';
+import { hashOtp } from '@/lib/otpUtils';
 
 // POST /api/customer/auth/verify-otp
 export async function POST(req: NextRequest) {
@@ -40,7 +41,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many wrong attempts. Please request a new OTP.' }, { status: 400 });
     }
 
-    if (otpRecord.otp !== otp) {
+    // Compare HMAC hash of submitted OTP against stored hash
+    if (otpRecord.otp !== hashOtp(otp)) {
       await query(`UPDATE customer_otps SET attempts = attempts + 1 WHERE id = ?`, [otpRecord.id]);
       const remaining = 5 - (otpRecord.attempts + 1);
       return NextResponse.json(
@@ -53,37 +55,41 @@ export async function POST(req: NextRequest) {
     await query(`UPDATE customer_otps SET used = 1 WHERE id = ?`, [otpRecord.id]);
 
     // Check if customer already exists
-    const customers = await query<{ id: number; name: string | null }[]>(
-      `SELECT id, name FROM customers WHERE phone = ? AND deleted_at IS NULL LIMIT 1`,
+    const customers = await query<{ id: number; name: string | null; token_version: number }[]>(
+      `SELECT id, name, token_version FROM customers WHERE phone = ? AND deleted_at IS NULL LIMIT 1`,
       [phone]
     );
 
     let customerId: number;
     let isNewUser: boolean;
+    let tokenVersion: number;
 
     if (customers.length === 0) {
-      // Brand new customer — create shell row
+      // Brand new customer — create shell row (token_version defaults to 1)
       const result = await query<{ insertId: number }>(
         `INSERT INTO customers (phone) VALUES (?)`,
         [phone]
       );
-      customerId = result.insertId;
-      isNewUser = true;
+      customerId   = result.insertId;
+      isNewUser    = true;
+      tokenVersion = 1;
     } else {
-      customerId = customers[0].id;
-      isNewUser = false;
+      customerId   = customers[0].id;
+      isNewUser    = false;
+      tokenVersion = customers[0].token_version ?? 1;
     }
 
-    // Sign JWT — roleSlug 'customer', email field reused for phone
+    // Embed tokenVersion so the server can revoke tokens by incrementing it
     const token = signToken({
-      userId: customerId,
-      email: phone,
-      roleSlug: 'customer',
-      roleName: 'Customer',
+      userId:       customerId,
+      email:        phone,
+      roleSlug:     'customer',
+      roleName:     'Customer',
+      tokenVersion,
     });
 
     return NextResponse.json({
-      success: true,
+      success:     true,
       token,
       customer_id: customerId,
       is_new_user: isNewUser,

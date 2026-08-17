@@ -30,7 +30,15 @@ export async function sendMail({
   const user = cfg.mail_username || process.env.MAIL_USER || '';
   const pass = cfg.mail_password || process.env.MAIL_PASS || '';
   const fromAddr = cfg.mail_from_address || process.env.MAIL_FROM || user;
-  const fromName = cfg.mail_from_name || 'BasicFlow';
+  const fromName = cfg.mail_from_name || 'WorkWala';
+
+  // Fail loudly if mail credentials are not configured — prevents silent delivery failures
+  if (!user || !pass || pass === 'your-app-password') {
+    throw new Error(
+      'Mail credentials not configured. Set MAIL_USER and MAIL_PASS in .env.local ' +
+      'or configure them in the Admin → Settings → Mail panel.'
+    );
+  }
 
   const transporter = nodemailer.createTransport({
     host,

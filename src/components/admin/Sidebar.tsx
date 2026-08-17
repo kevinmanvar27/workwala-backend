@@ -31,7 +31,9 @@ const NAV: NavItem[] = [
   { label: 'Permissions', href: '/admin/permissions',  icon: <Key size={16} />,             permission: 'permissions.view' },
   { label: 'Partners',      href: '/admin/partners',       icon: <Briefcase size={16} />, permission: 'users.view' },
   { label: 'Categories',    href: '/admin/categories',     icon: <Tag size={16} />,       permission: 'users.view' },
+  { label: 'Coupons',       href: '/admin/coupons',        icon: <Tag size={16} />,       permission: 'coupons.view' },
   { label: 'Pages',         href: '/admin/pages',         icon: <FileText size={16} />,  permission: 'pages.view' },
+  { label: 'Notifications', href: '/admin/notifications', icon: <Bell size={16} />,      permission: 'notifications.view' },
   { label: 'Activity Logs', href: '/admin/activity-logs', icon: <Activity size={16} />, permission: 'activity_logs.view' },
   {
     label: 'Settings',
@@ -39,14 +41,17 @@ const NAV: NavItem[] = [
     icon: <Settings size={16} />,
     permission: 'settings.view',
     children: [
-      { label: 'General',      href: '/admin/settings?tab=general' },
-      { label: 'Social Links', href: '/admin/settings?tab=social' },
-      { label: 'Auth & Login', href: '/admin/settings?tab=auth' },
-      { label: 'Payment',      href: '/admin/settings?tab=payment' },
-      { label: 'Mail',         href: '/admin/settings?tab=mail' },
-      { label: 'Analytics',    href: '/admin/settings?tab=analytics' },
-      { label: 'Appearance',   href: '/admin/settings?tab=appearance' },
-      { label: 'Database',     href: '/admin/settings?tab=database' },
+      { label: 'General',       href: '/admin/settings?tab=general' },
+      { label: 'Social',        href: '/admin/settings?tab=social' },
+      { label: 'Auth',          href: '/admin/settings?tab=auth' },
+      { label: 'Payment',       href: '/admin/settings?tab=payment' },
+      { label: 'Mail',          href: '/admin/settings?tab=mail' },
+      { label: 'Notifications', href: '/admin/settings?tab=notifications' },
+      { label: 'Analytics',     href: '/admin/settings?tab=analytics' },
+      { label: 'Appearance',    href: '/admin/settings?tab=appearance' },
+      { label: 'Database',      href: '/admin/settings?tab=database' },
+      { label: 'App Links',     href: '/admin/settings?tab=app-links' },
+      { label: 'SMS / OTP',     href: '/admin/settings?tab=sms' },
     ],
   },
 ];
@@ -83,7 +88,7 @@ function BrandBlock({ site, iconSize = 'md' }: { site: SiteInfo; iconSize?: 'sm'
         </svg>
       </div>
       <span className={`text-white font-bold tracking-tight truncate ${iconSize === 'sm' ? 'text-sm' : 'text-[13px]'}`}>
-        {site.site_name || 'BasicFlow'}
+        {site.site_name || 'WorkWala'}
       </span>
     </>
   );
@@ -488,6 +493,7 @@ function TopBar({ user }: { user: AdminUser | null }) {
     '/admin/roles':           'Roles',
     '/admin/permissions':     'Permissions',
     '/admin/pages':           'Pages',
+    '/admin/notifications':   'Notifications',
     '/admin/activity-logs':   'Activity Logs',
     '/admin/settings':        'Settings',
   };
@@ -539,7 +545,7 @@ function TopBar({ user }: { user: AdminUser | null }) {
         <div>
           <h1 className="text-[15px] font-bold text-[#2D2D2D] leading-none">{getTitle()}</h1>
           <p className="text-[11px] text-[#757575] mt-0.5">
-            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+            {new Date().toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Kolkata' })}
           </p>
         </div>
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { signToken } from '@/lib/jwt';
+import { hashOtp } from '@/lib/otpUtils';
 
 // POST /api/partner/auth/verify-otp
 export async function POST(req: NextRequest) {
@@ -40,7 +41,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many wrong attempts. Please request a new OTP.' }, { status: 400 });
     }
 
-    if (otpRecord.otp !== otp) {
+    // Compare HMAC hash of submitted OTP against stored hash
+    if (otpRecord.otp !== hashOtp(otp)) {
       await query(`UPDATE partner_otps SET attempts = attempts + 1 WHERE id = ?`, [otpRecord.id]);
       const remaining = 5 - (otpRecord.attempts + 1);
       return NextResponse.json(
@@ -52,52 +54,52 @@ export async function POST(req: NextRequest) {
     // Mark OTP as used
     await query(`UPDATE partner_otps SET used = 1 WHERE id = ?`, [otpRecord.id]);
 
-    // Check if partner already exists — fetch name + status to determine routing
-    const partners = await query<{ id: number; name: string | null; status: string }[]>(
-      `SELECT id, name, status FROM partners WHERE phone = ? AND deleted_at IS NULL LIMIT 1`,
+    // Check if partner already exists — fetch name + status + token_version
+    const partners = await query<{ id: number; name: string | null; status: string; token_version: number }[]>(
+      `SELECT id, name, status, token_version FROM partners WHERE phone = ? AND deleted_at IS NULL LIMIT 1`,
       [phone]
     );
 
     let partnerId: number;
     let profileComplete: boolean;
     let partnerStatus: string;
+    let tokenVersion: number;
 
     if (partners.length === 0) {
-      // Brand new — create the shell row
+      // Brand new — create the shell row (token_version defaults to 1)
       const result = await query<{ insertId: number }>(
         `INSERT INTO partners (phone, status) VALUES (?, 'pending')`,
         [phone]
       );
-      partnerId = result.insertId;
+      partnerId       = result.insertId;
       profileComplete = false;
-      partnerStatus = 'pending';
+      partnerStatus   = 'pending';
+      tokenVersion    = 1;
     } else {
-      partnerId = partners[0].id;
-      partnerStatus = partners[0].status;
-      // Profile is complete only if name has been filled in (submitted via profile/submit)
+      partnerId       = partners[0].id;
+      partnerStatus   = partners[0].status;
       profileComplete = !!(partners[0].name && partners[0].name.trim().length > 0);
+      tokenVersion    = partners[0].token_version ?? 1;
     }
 
-    // Sign JWT — roleSlug 'partner', email field reused for phone
+    // Embed tokenVersion so the server can revoke tokens by incrementing it
     const token = signToken({
-      userId: partnerId,
-      email: phone,
-      roleSlug: 'partner',
-      roleName: 'Partner',
+      userId:       partnerId,
+      email:        phone,
+      roleSlug:     'partner',
+      roleName:     'Partner',
+      tokenVersion,
     });
 
     return NextResponse.json({
-      success: true,
+      success:          true,
       token,
-      partner_id: partnerId,
-      // profile_complete: false  → go to CreateProfileStep1
-      // profile_complete: true, partner_status: 'approved' → go to Dashboard
-      // profile_complete: true, partner_status: 'pending'|'rejected' → go to ApplicationSubmitted
+      partner_id:       partnerId,
       profile_complete: profileComplete,
-      partner_status: partnerStatus,
+      partner_status:   partnerStatus,
     });
   } catch (err) {
-    console.error('verify-otp error:', err);
+    console.error('partner verify-otp error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

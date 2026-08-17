@@ -35,14 +35,55 @@ const KEY_GROUPS: Record<string, string> = {
   fcm_client_email:           'notifications',
   fcm_private_key:            'notifications',
   // App Links
-  playstore_url:              'app_links',
-  appstore_url:               'app_links',
+  playstore_partner_url:      'app_links',
+  playstore_customer_url:     'app_links',
+  appstore_partner_url:       'app_links',
+  appstore_customer_url:      'app_links',
   // SMS / OTP (MSG91)
   msg91_auth_key:             'sms',
   msg91_template_id:          'sms',
   msg91_sender_id:            'sms',
   msg91_otp_expiry_minutes:   'sms',
 };
+
+// Keys whose values must be masked in GET responses to prevent secret leakage
+// via the admin panel UI or API inspection tools.
+const MASKED_KEYS = new Set([
+  'fcm_private_key',
+  'razorpay_key_secret_test',
+  'razorpay_key_secret_live',
+  'mail_password',
+  'google_client_secret',
+  'apple_client_secret',
+  'msg91_auth_key',
+]);
+
+const MASK_VALUE = '••••••••';
+
+// Max file size for logo/favicon uploads: 2 MB
+const MAX_LOGO_SIZE = 2 * 1024 * 1024;
+
+/**
+ * Validates a logo/favicon file's magic bytes.
+ * Returns true if the content matches an allowed image type.
+ */
+async function validateImageMagicBytes(file: File): Promise<boolean> {
+  const bytes = await file.arrayBuffer();
+  const buf = Buffer.from(bytes.slice(0, 12));
+
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true;
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true;
+  // GIF: GIF87a or GIF89a
+  if (buf.slice(0, 3).toString('ascii') === 'GIF') return true;
+  // WebP: RIFF....WEBP
+  if (buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP') return true;
+  // SVG: starts with '<' (XML/SVG) — allowed but treated as text, not binary magic
+  if (buf[0] === 0x3C) return true; // '<'
+
+  return false;
+}
 
 // GET /api/admin/settings
 export async function GET(req: NextRequest) {
@@ -56,11 +97,10 @@ export async function GET(req: NextRequest) {
 
     const grouped: Record<string, Record<string, string>> = {};
     for (const s of settings) {
-      // Always use the canonical group from KEY_GROUPS; fall back to the DB value
-      // so unknown/custom keys still appear under whatever group they were saved with.
       const group = KEY_GROUPS[s.key_name] ?? s.group_name;
       if (!grouped[group]) grouped[group] = {};
-      grouped[group][s.key_name] = s.value;
+      // Mask sensitive keys — never expose secrets via the API
+      grouped[group][s.key_name] = MASKED_KEYS.has(s.key_name) ? MASK_VALUE : s.value;
     }
 
     return NextResponse.json({ settings: grouped });
@@ -91,46 +131,57 @@ export async function POST(req: NextRequest) {
       });
 
       // Handle logo upload — runs AFTER flat fields so the file path always wins
-      // over any empty site_logo string that came from the settings state
       const logoFile = formData.get('site_logo_file') as File | null;
       if (logoFile && logoFile.size > 0) {
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-        if (!allowedTypes.includes(logoFile.type)) {
-          return NextResponse.json({ error: 'Invalid logo file type' }, { status: 400 });
+        if (logoFile.size > MAX_LOGO_SIZE) {
+          return NextResponse.json({ error: 'Logo file must be under 2 MB' }, { status: 400 });
         }
-        const ext = logoFile.name.split('.').pop();
+        // Validate magic bytes — do NOT trust Content-Type header
+        const validLogo = await validateImageMagicBytes(logoFile);
+        if (!validLogo) {
+          return NextResponse.json({ error: 'Invalid logo file format. Use JPEG, PNG, GIF, WebP, or SVG.' }, { status: 400 });
+        }
+        const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
         const fileName = `logo_${Date.now()}.${ext}`;
         const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'logos');
         await mkdir(uploadDir, { recursive: true });
         const bytes = await logoFile.arrayBuffer();
         await writeFile(path.join(uploadDir, fileName), Buffer.from(bytes));
-        updates['site_logo'] = `/uploads/logos/${fileName}`; // overwrite empty string
+        updates['site_logo'] = `/uploads/logos/${fileName}`;
       }
 
       // Handle favicon upload — same pattern
       const faviconFile = formData.get('site_favicon_file') as File | null;
       if (faviconFile && faviconFile.size > 0) {
-        const allowedTypes = ['image/x-icon', 'image/png', 'image/svg+xml', 'image/webp', 'image/vnd.microsoft.icon'];
-        if (!allowedTypes.includes(faviconFile.type)) {
-          return NextResponse.json({ error: 'Invalid favicon file type' }, { status: 400 });
+        if (faviconFile.size > MAX_LOGO_SIZE) {
+          return NextResponse.json({ error: 'Favicon file must be under 2 MB' }, { status: 400 });
         }
-        const ext = faviconFile.name.split('.').pop();
+        const validFavicon = await validateImageMagicBytes(faviconFile);
+        if (!validFavicon) {
+          return NextResponse.json({ error: 'Invalid favicon file format. Use JPEG, PNG, GIF, WebP, or SVG.' }, { status: 400 });
+        }
+        const ext = faviconFile.name.split('.').pop()?.toLowerCase() || 'ico';
         const fileName = `favicon_${Date.now()}.${ext}`;
         const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'logos');
         await mkdir(uploadDir, { recursive: true });
         const bytes = await faviconFile.arrayBuffer();
         await writeFile(path.join(uploadDir, fileName), Buffer.from(bytes));
-        updates['site_favicon'] = `/uploads/logos/${fileName}`; // overwrite empty string
+        updates['site_favicon'] = `/uploads/logos/${fileName}`;
       }
     } else {
       updates = await req.json();
     }
 
+    // If the client sends the mask value back for a sensitive key, skip it —
+    // this means the user didn't change it, so we must not overwrite with '••••••••'
+    for (const key of Object.keys(updates)) {
+      if (MASKED_KEYS.has(key) && updates[key] === MASK_VALUE) {
+        delete updates[key];
+      }
+    }
+
     for (let [key, value] of Object.entries(updates)) {
       // Normalize escaped newlines in the Firebase private key.
-      // The Firebase service account JSON stores the key with literal \n sequences.
-      // When pasted into the textarea they arrive as \\n — convert to real newlines
-      // so firebase-admin can parse the PEM key correctly.
       if (key === 'fcm_private_key' && value.includes('\\n')) {
         value = value.replace(/\\n/g, '\n');
       }

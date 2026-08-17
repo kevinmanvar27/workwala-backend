@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { Settings, Globe, Shield, CreditCard, Mail, Upload, X, Save, BarChart3, Database, Download, RefreshCw, FileText, Table2, Palette, Bell, Smartphone, MessageSquare } from 'lucide-react';
+import { Settings, Globe, Shield, CreditCard, Mail, Upload, X, Save, BarChart3, Database, Download, RefreshCw, FileText, Table2, Palette, Bell, Smartphone, MessageSquare, Eye, EyeOff } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
 
 type SettingsData = Record<string, Record<string, string>>;
@@ -51,6 +51,43 @@ const Field = ({
     {hint && <p className="text-xs text-[#757575] mt-1.5">{hint}</p>}
   </div>
 );
+
+// Secret field with show/hide toggle
+const SecretField = ({
+  label, group, field, placeholder = '', hint = '',
+  get, set,
+}: {
+  label: string; group: string; field: string;
+  placeholder?: string; hint?: string;
+  get: (g: string, k: string) => string;
+  set: (g: string, k: string, v: string) => void;
+}) => {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-[#757575] mb-1.5 uppercase tracking-wide">{label}</label>
+      <div className="relative">
+        <input
+          type={visible ? 'text' : 'password'}
+          value={get(group, field)}
+          onChange={(e) => set(group, field, e.target.value)}
+          placeholder={placeholder}
+          className="w-full bg-[#F9F9F9] border border-[#E0E0E0] rounded-xl px-4 py-2.5 pr-11 text-sm text-[#2D2D2D] placeholder-[#757575] focus:outline-none focus:ring-2 focus:ring-[#4A2372] focus:border-transparent focus:bg-white transition-all font-mono"
+        />
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          className="absolute inset-y-0 right-0 flex items-center px-3 text-[#757575] hover:text-[#2D2D2D] transition-colors"
+          tabIndex={-1}
+          title={visible ? 'Hide secret' : 'Show secret'}
+        >
+          {visible ? <EyeOff size={15} /> : <Eye size={15} />}
+        </button>
+      </div>
+      {hint && <p className="text-xs text-[#757575] mt-1.5">{hint}</p>}
+    </div>
+  );
+};
 
 function SettingsContent() {
   const searchParams = useSearchParams();
@@ -122,7 +159,7 @@ function SettingsContent() {
       if (!res.ok) { toast.error('Export failed'); return; }
       const blob = await res.blob();
       const suffix = exportFormat === 'structure' ? '_structure' : '';
-      triggerDownload(blob, `next_basic_flow${suffix}_${Date.now()}.sql`);
+      triggerDownload(blob, `workwala${suffix}_${Date.now()}.sql`);
       toast.success(exportFormat === 'structure' ? 'Database structure exported' : 'Full database exported');
     } catch { toast.error('Export failed'); }
     finally { setExportingAll(false); }
@@ -257,7 +294,7 @@ function SettingsContent() {
                 <p className="text-xs text-[#757575] mt-0.5">Basic site information and contact details</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="Site Name"       group="general" field="site_name"             placeholder="BasicFlow"                    get={get} set={set} />
+                <Field label="Site Name"       group="general" field="site_name"             placeholder="WorkWala"                     get={get} set={set} />
                 <Field label="Tagline"         group="general" field="site_tagline"          placeholder="Build something amazing"      get={get} set={set} />
                 <Field label="Site URL"        group="general" field="site_url"              placeholder="https://example.com"          get={get} set={set} hint="Canonical base URL — used in meta tags and sitemaps" />
                 {/* Site Language — drives <html lang> and OG locale for SEO/AEO */}
@@ -287,7 +324,7 @@ function SettingsContent() {
                   </select>
                   <p className="text-xs text-[#757575] mt-1.5">Sets <code className="font-mono bg-[#F0F0F0] px-1 rounded">&lt;html lang&gt;</code> and Open Graph locale — important for SEO</p>
                 </div>
-                <Field label="Copyright Text"  group="general" field="copyright_text"        placeholder="© 2025 BasicFlow. All rights reserved." get={get} set={set} />
+                <Field label="Copyright Text"  group="general" field="copyright_text"        placeholder="© 2026 WorkWala. All rights reserved." get={get} set={set} />
                 <Field label="Support Email"   group="general" field="contact_support_email" type="email" placeholder="support@example.com"  get={get} set={set} />
                 <Field label="Business Email"  group="general" field="business_email"        type="email" placeholder="business@example.com" get={get} set={set} />
                 <Field label="Phone"           group="general" field="contact_phone"         placeholder="+1 234 567 890"               get={get} set={set} />
@@ -399,14 +436,14 @@ function SettingsContent() {
                 <Field
                   label="Meta Title"
                   group="general" field="meta_title"
-                  placeholder="BasicFlow — Build something amazing"
+                  placeholder="WorkWala — Build something amazing"
                   hint="Shown in browser tab and search results (50–60 chars recommended)"
                   get={get} set={set}
                 />
                 <Field
                   label="Meta Author"
                   group="general" field="meta_author"
-                  placeholder="BasicFlow Team"
+                  placeholder="WorkWala Team"
                   hint="Author name injected into the author meta tag"
                   get={get} set={set}
                 />
@@ -455,7 +492,7 @@ function SettingsContent() {
                 <Field
                   label="OG Title"
                   group="general" field="og_title"
-                  placeholder="BasicFlow — Build something amazing"
+                  placeholder="WorkWala — Build something amazing"
                   hint="Defaults to Meta Title if left empty"
                   get={get} set={set}
                 />
@@ -669,6 +706,16 @@ function SettingsContent() {
         {/* ── Payment ─────────────────────────────────────────────── */}
         {activeTab === 'payment' && (
           <div className="p-6 space-y-6">
+            <style>{`
+              @keyframes payment-fade-in {
+                from { opacity: 0; transform: translateY(10px); }
+                to   { opacity: 1; transform: translateY(0); }
+              }
+              .payment-panel {
+                animation: payment-fade-in 0.25s ease both;
+              }
+            `}</style>
+
             <div>
               <h2 className="font-semibold text-[#2D2D2D]">Razorpay Payment</h2>
               <p className="text-xs text-[#757575] mt-0.5">Configure your payment gateway credentials</p>
@@ -681,12 +728,12 @@ function SettingsContent() {
                   key={mode}
                   type="button"
                   onClick={() => set('payment', 'razorpay_mode', mode)}
-                  className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all capitalize ${
+                  className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 capitalize ${
                     get('payment', 'razorpay_mode') === mode
                       ? mode === 'live'
-                        ? 'bg-[#2E7D32] text-white shadow-sm'
-                        : 'bg-white shadow-sm'
-                      : 'text-[#757575] hover:text-[#2D2D2D]'
+                        ? 'bg-[#2E7D32] text-white shadow-sm scale-[1.03]'
+                        : 'bg-white shadow-sm scale-[1.03]'
+                      : 'text-[#757575] hover:text-[#2D2D2D] hover:scale-[1.02]'
                   }`}
                   style={get('payment', 'razorpay_mode') === mode && mode !== 'live' ? { color: 'var(--primary)' } : undefined}
                 >
@@ -695,22 +742,24 @@ function SettingsContent() {
               ))}
             </div>
 
-            <div className="grid grid-cols-1 gap-6">
-              <div className="space-y-4">
+            {get('payment', 'razorpay_mode') !== 'live' && (
+              <div key="test" className="payment-panel space-y-4">
                 <p className="text-xs font-semibold text-[#757575] uppercase tracking-widest">Test Credentials</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Test Key ID" group="payment" field="razorpay_key_id_test" placeholder="rzp_test_…" get={get} set={set} />
-                  <Field label="Test Key Secret" group="payment" field="razorpay_key_secret_test" type="password" placeholder="••••••••" get={get} set={set} />
+                  <SecretField label="Test Key Secret" group="payment" field="razorpay_key_secret_test" placeholder="••••••••" get={get} set={set} />
                 </div>
               </div>
-              <div className="space-y-4 pt-4 border-t border-[#E0E0E0]">
+            )}
+            {get('payment', 'razorpay_mode') === 'live' && (
+              <div key="live" className="payment-panel space-y-4">
                 <p className="text-xs font-semibold text-[#757575] uppercase tracking-widest">Live Credentials</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Live Key ID" group="payment" field="razorpay_key_id_live" placeholder="rzp_live_…" get={get} set={set} />
-                  <Field label="Live Key Secret" group="payment" field="razorpay_key_secret_live" type="password" placeholder="••••••••" get={get} set={set} />
+                  <SecretField label="Live Key Secret" group="payment" field="razorpay_key_secret_live" placeholder="••••••••" get={get} set={set} />
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -727,7 +776,7 @@ function SettingsContent() {
               <Field label="Username" group="mail" field="mail_username" type="email" placeholder="you@gmail.com" get={get} set={set} />
               <Field label="Password" group="mail" field="mail_password" type="password" placeholder="App password" get={get} set={set} />
               <Field label="From Address" group="mail" field="mail_from_address" type="email" placeholder="noreply@example.com" get={get} set={set} />
-              <Field label="From Name" group="mail" field="mail_from_name" placeholder="BasicFlow" get={get} set={set} />
+              <Field label="From Name" group="mail" field="mail_from_name" placeholder="WorkWala" get={get} set={set} />
               <div>
                 <label className="block text-xs font-semibold text-[#757575] mb-1.5 uppercase tracking-wide">Encryption</label>
                 <select
@@ -948,7 +997,7 @@ function SettingsContent() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </div>
-                  <span className="text-white text-xs font-bold">BasicFlow</span>
+                  <span className="text-white text-xs font-bold">WorkWala</span>
                   <div className="flex-1" />
                   {/* Active nav item */}
                   <span
@@ -1347,7 +1396,7 @@ function SettingsContent() {
           <div className="p-6 space-y-6">
             <div>
               <h2 className="font-semibold text-[#2D2D2D]">App Links</h2>
-              <p className="text-xs text-[#757575] mt-0.5">Store links for your mobile app on Google Play and the Apple App Store</p>
+              <p className="text-xs text-[#757575] mt-0.5">Store links for your mobile apps on Google Play and the Apple App Store</p>
             </div>
 
             {/* Play Store */}
@@ -1364,16 +1413,25 @@ function SettingsContent() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-[#2D2D2D]">Google Play Store</p>
-                  <p className="text-xs text-[#757575]">Android app listing URL</p>
+                  <p className="text-xs text-[#757575]">Android app listing URLs</p>
                 </div>
               </div>
-              <div className="px-5 py-4">
+              <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <Field
-                  label="Play Store URL"
+                  label="For Partner"
                   group="app_links"
-                  field="playstore_url"
-                  placeholder="https://play.google.com/store/apps/details?id=com.yourapp"
-                  hint="Paste the full Google Play Store link for your app"
+                  field="playstore_partner_url"
+                  placeholder="https://play.google.com/store/apps/details?id=com.yourapp.partner"
+                  hint="Google Play link for the Partner app"
+                  get={get}
+                  set={set}
+                />
+                <Field
+                  label="For Customer"
+                  group="app_links"
+                  field="playstore_customer_url"
+                  placeholder="https://play.google.com/store/apps/details?id=com.yourapp.customer"
+                  hint="Google Play link for the Customer app"
                   get={get}
                   set={set}
                 />
@@ -1391,16 +1449,25 @@ function SettingsContent() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-[#2D2D2D]">Apple App Store</p>
-                  <p className="text-xs text-[#757575]">iOS app listing URL</p>
+                  <p className="text-xs text-[#757575]">iOS app listing URLs</p>
                 </div>
               </div>
-              <div className="px-5 py-4">
+              <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <Field
-                  label="App Store URL"
+                  label="For Partner"
                   group="app_links"
-                  field="appstore_url"
-                  placeholder="https://apps.apple.com/app/your-app/id000000000"
-                  hint="Paste the full Apple App Store link for your app"
+                  field="appstore_partner_url"
+                  placeholder="https://apps.apple.com/app/your-partner-app/id000000000"
+                  hint="App Store link for the Partner app"
+                  get={get}
+                  set={set}
+                />
+                <Field
+                  label="For Customer"
+                  group="app_links"
+                  field="appstore_customer_url"
+                  placeholder="https://apps.apple.com/app/your-customer-app/id000000001"
+                  hint="App Store link for the Customer app"
                   get={get}
                   set={set}
                 />

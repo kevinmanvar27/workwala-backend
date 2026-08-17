@@ -61,14 +61,14 @@ async function buildSQLDump(tables: string[]): Promise<string> {
   const now = new Date().toISOString();
 
   lines.push('-- ─────────────────────────────────────────────────────────────');
-  lines.push(`-- Database Export — next_basic_flow`);
+  lines.push(`-- Database Export — workwala`);
   lines.push(`-- Generated: ${now}`);
   lines.push(`-- Tables: ${tables.join(', ')}`);
   lines.push('-- ─────────────────────────────────────────────────────────────');
   lines.push('');
   lines.push('SET FOREIGN_KEY_CHECKS=0;');
   lines.push('SET SQL_MODE="NO_AUTO_VALUE_ON_ZERO";');
-  lines.push('SET time_zone="+00:00";');
+  lines.push('SET time_zone="+05:30"; -- IST (Asia/Kolkata)');
   lines.push('');
 
   for (const table of tables) {
@@ -122,7 +122,7 @@ async function buildStructureDump(tables: string[]): Promise<string> {
   const now = new Date().toISOString();
 
   lines.push('-- ─────────────────────────────────────────────────────────────');
-  lines.push(`-- Database Structure Export — next_basic_flow`);
+  lines.push(`-- Database Structure Export — workwala`);
   lines.push(`-- Generated: ${now}`);
   lines.push(`-- Tables: ${tables.join(', ')}`);
   lines.push('-- Structure only — no data rows included');
@@ -130,7 +130,7 @@ async function buildStructureDump(tables: string[]): Promise<string> {
   lines.push('');
   lines.push('SET FOREIGN_KEY_CHECKS=0;');
   lines.push('SET SQL_MODE="NO_AUTO_VALUE_ON_ZERO";');
-  lines.push('SET time_zone="+00:00";');
+  lines.push('SET time_zone="+05:30"; -- IST (Asia/Kolkata)');
   lines.push('');
 
   for (const table of tables) {
@@ -214,7 +214,7 @@ export async function GET(req: NextRequest) {
       const sql = await buildStructureDump(tables);
       const filename = tableParam
         ? `${tableParam}_structure_${Date.now()}.sql`
-        : `next_basic_flow_structure_${Date.now()}.sql`;
+        : `workwala_structure_${Date.now()}.sql`;
 
       await logActivity({
         userId: actor!.userId,
@@ -241,7 +241,7 @@ export async function GET(req: NextRequest) {
     const sql = await buildSQLDump(tables);
     const filename = tableParam
       ? `${tableParam}_${Date.now()}.sql`
-      : `next_basic_flow_${Date.now()}.sql`;
+      : `workwala_${Date.now()}.sql`;
 
     await logActivity({
       userId: actor!.userId,

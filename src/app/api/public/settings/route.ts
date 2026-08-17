@@ -14,7 +14,9 @@ export async function GET() {
            'meta_og_image', 'og_title', 'og_description', 'copyright_text',
            'ga_script',
            'google_login_enabled', 'apple_login_enabled', 'manual_login_enabled',
-           'color_primary', 'color_accent', 'color_sidebar'
+           'color_primary', 'color_accent', 'color_sidebar',
+           'playstore_partner_url', 'playstore_customer_url',
+           'appstore_partner_url', 'appstore_customer_url'
          )
        ORDER BY key_name`
     );

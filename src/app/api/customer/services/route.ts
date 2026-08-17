@@ -1,5 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { getClientIp } from '@/lib/activityLogger';
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// Prevents automated enumeration of the service catalogue.
+// In-process store — replace with Redis for multi-instance deployments.
+const serviceListHits = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT    = 60;           // max 60 requests
+const RATE_WINDOW   = 60_000;       // per 60 seconds per IP
+
+function checkServiceRateLimit(ip: string): boolean {
+  const now    = Date.now();
+  const record = serviceListHits.get(ip);
+  if (!record || now > record.resetAt) {
+    serviceListHits.set(ip, { count: 1, resetAt: now + RATE_WINDOW });
+    return true;
+  }
+  if (record.count >= RATE_LIMIT) return false;
+  record.count += 1;
+  return true;
+}
 
 // GET /api/customer/services
 // Public — returns all active services.
@@ -7,17 +27,23 @@ import { query } from '@/lib/db';
 // price_per_hour, bg_color, border_color) come from the category so that
 // admin edits are reflected immediately. Falls back to service-level values
 // when no category is linked.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const ip = getClientIp(req) ?? 'unknown';
+  if (!checkServiceRateLimit(ip)) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please slow down.' },
+      { status: 429, headers: { 'Retry-After': '60' } }
+    );
+  }
+
   try {
     const services = await query<{
       id: number;
-      // service-level fallbacks
       svc_name: string;
       svc_slug: string;
       svc_price: string;
       svc_bg: string;
       svc_border: string;
-      // category overrides (null when no category linked)
       cat_name: string | null;
       cat_slug: string | null;
       cat_price: string | null;
@@ -49,13 +75,12 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       services: services.map((s) => ({
-        id:            s.id,
-        // category values take full priority over service values
-        name:          s.cat_name        ?? s.svc_name,
-        slug:          s.cat_slug        ?? s.svc_slug,
+        id:             s.id,
+        name:           s.cat_name   ?? s.svc_name,
+        slug:           s.cat_slug   ?? s.svc_slug,
         price_per_hour: parseFloat(s.cat_price ?? s.svc_price),
-        bg_color:      s.cat_bg          ?? s.svc_bg,
-        border_color:  s.cat_border      ?? s.svc_border,
+        bg_color:       s.cat_bg     ?? s.svc_bg,
+        border_color:   s.cat_border ?? s.svc_border,
       })),
     });
   } catch (err) {

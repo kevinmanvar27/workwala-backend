@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { verifyToken } from '@/lib/jwt';
+import { requireMobileAuth } from '@/lib/mobileAuth';
 
 // GET /api/customer/profile/me
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const payload = verifyToken(token);
-    if (!payload || payload.roleSlug !== 'customer') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
+    if (authError) return authError;
 
     const customers = await query<{
       id: number;

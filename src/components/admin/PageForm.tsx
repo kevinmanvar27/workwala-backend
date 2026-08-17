@@ -1,5 +1,6 @@
 'use client';
 
+import DOMPurify from 'dompurify';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -107,7 +108,7 @@ export default function PageForm({ pageId }: PageFormProps) {
                 {preview ? (
                   <div
                     className="min-h-[280px] bg-[#F9F9F9] border border-[#E0E0E0] rounded-xl px-5 py-4 prose max-w-none text-sm overflow-auto"
-                    dangerouslySetInnerHTML={{ __html: form.content || '<p class="text-[#757575]">Nothing to preview…</p>' }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(form.content || '<p class="text-[#757575]">Nothing to preview…</p>') }}
                   />
                 ) : (
                   <textarea

@@ -1,5 +1,5 @@
 {
-  "name": "next-basicflow",
+  "name": "next-workwala",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,20 +13,28 @@
     "setup": "node scripts/setup.js"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "@types/dompurify": "^3.0.5",
+    "@types/mime-types": "^3.0.1",
+    "@types/sanitize-html": "^2.16.1",
     "bcryptjs": "^3.0.3",
+    "dompurify": "^3.4.13",
     "firebase-admin": "^13.10.0",
+    "framer-motion": "^13.1.0",
+    "gsap": "^3.15.0",
     "jose": "^6.2.8",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.31.0",
+    "mime-types": "^3.0.2",
     "multer": "^2.2.0",
     "mysql2": "^3.23.3",
     "next": "16.3.0",
-    "next-auth": "^5.0.0-beta.32",
-    "nodemailer": "^8.0.11",
+    "nodemailer": "^9.0.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hot-toast": "^2.6.0",
     "recharts": "^3.10.1",
+    "sanitize-html": "^2.17.7",
     "uuid": "^14.0.1"
   },
   "devDependencies": {
@@ -34,15 +42,15 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
-    "@types/node": "^20",
+    "@types/node": "20.19.43",
     "@types/nodemailer": "^8.0.1",
-    "@types/react": "^19",
+    "@types/react": "19.2.18",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "5.9.3"
   }
 }

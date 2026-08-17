@@ -7,7 +7,7 @@ const DB_CONFIG = {
   port: parseInt(process.env.DB_PORT || '3306'),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'next_basic_flow',
+  database: process.env.DB_NAME || 'workwala',
 };
 
 async function seed() {
@@ -59,6 +59,13 @@ async function seed() {
       // Activity Logs
       { name: 'View Activity Logs', slug: 'activity_logs.view', module: 'activity_logs' },
       { name: 'Delete Activity Logs', slug: 'activity_logs.delete', module: 'activity_logs' },
+      // Notifications
+      { name: 'View Notifications',     slug: 'notifications.view',     module: 'notifications' },
+      { name: 'Create Notifications',   slug: 'notifications.create',   module: 'notifications' },
+      { name: 'Send Notifications',     slug: 'notifications.send',     module: 'notifications' },
+      { name: 'Schedule Notifications', slug: 'notifications.schedule', module: 'notifications' },
+      { name: 'Cancel Notifications',   slug: 'notifications.cancel',   module: 'notifications' },
+      { name: 'Delete Notifications',   slug: 'notifications.delete',   module: 'notifications' },
     ];
     for (const perm of permissions) {
       await connection.query(
@@ -160,7 +167,7 @@ async function seed() {
     // ─── SETTINGS ────────────────────────────────────────────────────────────
     const settings = [
       // General
-      { key_name: 'site_name', value: 'BasicFlow', group_name: 'general' },
+      { key_name: 'site_name', value: 'WorkWala', group_name: 'general' },
       { key_name: 'site_tagline', value: 'Build something amazing', group_name: 'general' },
       { key_name: 'site_logo', value: '', group_name: 'general' },
       { key_name: 'contact_support_email', value: 'support@example.com', group_name: 'general' },
@@ -192,7 +199,7 @@ async function seed() {
       { key_name: 'mail_username', value: '', group_name: 'mail' },
       { key_name: 'mail_password', value: '', group_name: 'mail' },
       { key_name: 'mail_from_address', value: '', group_name: 'mail' },
-      { key_name: 'mail_from_name', value: 'BasicFlow', group_name: 'mail' },
+      { key_name: 'mail_from_name', value: 'WorkWala', group_name: 'mail' },
       { key_name: 'mail_encryption', value: 'tls', group_name: 'mail' },
       // Notifications
       { key_name: 'push_notifications_enabled', value: '0', group_name: 'notifications' },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { verifyToken } from '@/lib/jwt';
+import { requireMobileAuth } from '@/lib/mobileAuth';
 
 // POST /api/partner/location
 // Body: { lat: number, lng: number }
@@ -8,16 +8,8 @@ import { verifyToken } from '@/lib/jwt';
 // Stores the partner's current GPS coordinates + last_seen_at timestamp.
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const payload = verifyToken(token);
-    if (!payload || payload.roleSlug !== 'partner') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'partner');
+    if (authError) return authError;
 
     const body = await req.json();
     const lat = typeof body.lat === 'number' ? body.lat : parseFloat(body.lat);
@@ -25,6 +17,11 @@ export async function POST(req: NextRequest) {
 
     if (isNaN(lat) || isNaN(lng)) {
       return NextResponse.json({ error: 'lat and lng are required numbers' }, { status: 400 });
+    }
+
+    // Validate coordinate ranges
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return NextResponse.json({ error: 'Invalid coordinate values' }, { status: 400 });
     }
 
     await query(

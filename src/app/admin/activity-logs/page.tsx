@@ -46,9 +46,9 @@ const defaultActionColor = 'bg-[#F9F9F9] text-[#757575]';
 
 function formatDate(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Kolkata' })
     + ' · '
-    + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
 }
 
 /** Display IP in a human-readable way — local loopback shown as "localhost" */

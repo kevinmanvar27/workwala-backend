@@ -214,6 +214,8 @@ export default function CategoriesPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[#E0E0E0]">
+                  {/* Sr. No. column header */}
+                  <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5 w-12">Sr.</th>
                   <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5">Category</th>
                   <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5">Price / Hr</th>
                   <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5 hidden md:table-cell">Color</th>
@@ -235,7 +237,7 @@ export default function CategoriesPage() {
                           </div>
                         </div>
                       </td>
-                      {[...Array(5)].map((_, j) => (
+                      {[...Array(6)].map((_, j) => (
                         <td key={j} className="px-6 py-4">
                           <div className="h-3 bg-[var(--light-purple)] rounded w-16 animate-pulse" />
                         </td>
@@ -244,7 +246,7 @@ export default function CategoriesPage() {
                   ))
                 ) : categories.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-20 text-center">
+                    <td colSpan={7} className="px-6 py-20 text-center">
                       <div className="w-14 h-14 bg-[var(--light-purple)] rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <Tag size={24} style={{ color: 'var(--primary)' }} />
                       </div>
@@ -253,8 +255,13 @@ export default function CategoriesPage() {
                     </td>
                   </tr>
                 ) : (
-                  categories.map((cat) => (
+                  categories.map((cat, index) => (
                     <tr key={cat.id} className="border-b border-[#F9F9F9] last:border-0 hover:bg-[#F9F9F9]/60 transition-colors">
+
+                      {/* Sr. No. cell */}
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-medium text-[#757575]">{index + 1}</span>
+                      </td>
 
                       {/* Name + slug */}
                       <td className="px-6 py-4">

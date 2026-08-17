@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { verifyToken } from '@/lib/jwt';
+import { requireMobileAuth } from '@/lib/mobileAuth';
 
 // GET /api/partner/profile/me
 // Returns partner profile data used by splash screen + dashboard.
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const payload = verifyToken(token);
-    if (!payload || payload.roleSlug !== 'partner') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'partner');
+    if (authError) return authError;
 
     const partners = await query<{
       id: number;
@@ -49,11 +42,9 @@ export async function GET(req: NextRequest) {
     const profileComplete = !!(partner.name && partner.name.trim().length > 0);
 
     // Return the raw relative path — Flutter prepends its own baseUrl.
-    // This avoids the server needing to know the client-facing host.
     const selfiePath = partner.selfie ?? null;
 
     // Today's earnings — sum from partner_earnings if table exists, else 0
-    // (table will be added when job flow is built; safe fallback for now)
     let todayEarnings = 0;
     let todayJobs = 0;
     try {
@@ -73,7 +64,6 @@ export async function GET(req: NextRequest) {
       success: true,
       profile_complete: profileComplete,
       partner_status: partner.status,
-      // Dashboard data
       name:           partner.name    ?? '',
       phone:          partner.phone,
       gender:         partner.gender  ?? '',

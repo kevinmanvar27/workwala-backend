@@ -55,6 +55,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name, email and password are required' }, { status: 400 });
     }
 
+    // Field length caps
+    if (name.length > 100) {
+      return NextResponse.json({ error: 'Name must be 100 characters or fewer' }, { status: 400 });
+    }
+
+    // Basic email format validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+    }
+
+    // Minimum password length
+    if (password.length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+    }
+
     const existing = await query<{ id: number }[]>(
       `SELECT id FROM users WHERE email = ? AND deleted_at IS NULL`, [email]
     );

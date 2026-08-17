@@ -1,16 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { getClientIp } from '@/lib/activityLogger';
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+const serviceDetailHits = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT  = 60;
+const RATE_WINDOW = 60_000;
+
+function checkRateLimit(ip: string): boolean {
+  const now    = Date.now();
+  const record = serviceDetailHits.get(ip);
+  if (!record || now > record.resetAt) {
+    serviceDetailHits.set(ip, { count: 1, resetAt: now + RATE_WINDOW });
+    return true;
+  }
+  if (record.count >= RATE_LIMIT) return false;
+  record.count += 1;
+  return true;
+}
 
 type Params = { params: Promise<{ id: string }> };
 
 // GET /api/customer/services/:id
 // Public — returns a single active service by ID.
 // Used by BookingFunnelScreen to fetch live price/name before confirming.
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
+  const ip = getClientIp(req) ?? 'unknown';
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please slow down.' },
+      { status: 429, headers: { 'Retry-After': '60' } }
+    );
+  }
+
   try {
     const { id: rawId } = await params;
     const id = parseInt(rawId, 10);
-    if (isNaN(id)) {
+    if (isNaN(id) || id <= 0) {
       return NextResponse.json({ error: 'Invalid service id' }, { status: 400 });
     }
 

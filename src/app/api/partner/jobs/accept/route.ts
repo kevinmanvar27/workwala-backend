@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { verifyToken } from '@/lib/jwt';
+import { requireMobileAuth } from '@/lib/mobileAuth';
+import { randomInt, createHmac } from 'crypto';
 
 // Parses a "lat,lng" address string into {lat, lng} or null.
 function parseCoordsFromAddress(address: string): { lat: number; lng: number } | null {
@@ -12,35 +13,36 @@ function parseCoordsFromAddress(address: string): { lat: number; lng: number } |
   return { lat, lng };
 }
 
-// Generates a cryptographically random 6-digit OTP string.
+// Generates a cryptographically secure 6-digit OTP string.
 function generateOtp(): string {
-  const digits = Math.floor(100000 + Math.random() * 900000);
-  return digits.toString();
+  return randomInt(100000, 1000000).toString();
+}
+
+// HMAC-SHA256 hash the booking OTP before storing it.
+// Uses OTP_PEPPER so even a DB dump can't reveal the OTP.
+function hashBookingOtp(otp: string): string {
+  const pepper = process.env.OTP_PEPPER;
+  if (!pepper) throw new Error('[jobs/accept] OTP_PEPPER is not set');
+  return createHmac('sha256', pepper).update(otp).digest('hex');
 }
 
 // POST /api/partner/jobs/accept
 // Body: { booking_id: number }
 // Atomically claims the booking for this partner (status: finding → matched),
-// generates a 6-digit OTP stored on the booking for customer verification.
+// generates a 6-digit OTP stored as HMAC-SHA256 hash on the booking.
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'partner');
+    if (authError) return authError;
+
+    const body = await req.json();
+    const booking_id = parseInt(body.booking_id, 10);
+    if (!Number.isInteger(booking_id) || booking_id <= 0) {
+      return NextResponse.json({ error: 'booking_id must be a positive integer' }, { status: 400 });
     }
 
-    const payload = verifyToken(token);
-    if (!payload || payload.roleSlug !== 'partner') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { booking_id } = await req.json();
-    if (!booking_id) {
-      return NextResponse.json({ error: 'booking_id is required' }, { status: 400 });
-    }
-
-    const otp = generateOtp();
+    const otp     = generateOtp();
+    const otpHash = hashBookingOtp(otp); // Store hash, return plaintext to partner app only
 
     // Atomically claim the booking: only succeeds if still in 'finding' state
     const result = await query<{ affectedRows: number }>(
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
         WHERE id = ?
           AND status = 'finding'
           AND partner_id IS NULL`,
-      [payload.userId, otp, booking_id]
+      [payload.userId, otpHash, booking_id]
     );
 
     if (result.affectedRows === 0) {
@@ -71,7 +73,6 @@ export async function POST(req: NextRequest) {
       address: string;
       lat: string | null;
       lng: string | null;
-      otp_code: string;
       customer_name: string | null;
       customer_phone: string;
     }>>(
@@ -83,7 +84,6 @@ export async function POST(req: NextRequest) {
               b.address,
               b.lat,
               b.lng,
-              b.otp_code,
               COALESCE(c.name, c.phone)          AS customer_name,
               c.phone                            AS customer_phone
        FROM bookings b
@@ -123,7 +123,9 @@ export async function POST(req: NextRequest) {
       address:          b.address,
       lat:              resolvedLat,
       lng:              resolvedLng,
-      otp_code:         b.otp_code,
+      // Return the raw OTP to the partner app — they show it to the customer.
+      // The DB only stores the hash; this is the only time the plaintext is available.
+      otp_code:         otp,
       customer_name:    b.customer_name ?? 'Customer',
       customer_phone:   b.customer_phone,
     });

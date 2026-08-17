@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { verifyToken } from '@/lib/jwt';
+import { requireMobileAuth } from '@/lib/mobileAuth';
 
 // Parses a "lat,lng" address string into {lat, lng} or null.
 function parseCoordsFromAddress(address: string): { lat: number; lng: number } | null {
@@ -20,14 +20,8 @@ function parseCoordsFromAddress(address: string): { lat: number; lng: number } |
 // customer_name falls back to phone number when name is NULL.
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const payload = verifyToken(token);
-    if (!payload || payload.roleSlug !== 'partner') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'partner');
+    if (authError) return authError;
 
     // Fetch partner's last known location (saved when they went online)
     const partnerRows = await query<{ lat: number | null; lng: number | null }[]>(
@@ -117,7 +111,6 @@ export async function GET(req: NextRequest) {
       if (aHasCoords && bHasCoords) {
         const aDist = a.distanceKm ?? Infinity;
         const bDist = b.distanceKm ?? Infinity;
-        // Filter out jobs > 50 km — skip them (they'll be at the end)
         return aDist - bDist;
       }
       return 0; // both address-only — keep DESC created_at order from query
@@ -144,7 +137,6 @@ export async function GET(req: NextRequest) {
         address:          best.address,
         customer_name:    best.customer_name ?? 'Customer',
         customer_phone:   best.customer_phone,
-        // Return resolved coords so the app can show the map immediately
         lat:              best.resolvedLat,
         lng:              best.resolvedLng,
         distance_km:      best.distanceKm,

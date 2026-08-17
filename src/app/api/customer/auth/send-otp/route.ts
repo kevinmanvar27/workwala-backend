@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { sendOtp, getOtpExpiryMinutes } from '@/lib/msg91';
-
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
+import { generateOtp, hashOtp } from '@/lib/otpUtils';
 
 // POST /api/customer/auth/send-otp
 export async function POST(req: NextRequest) {
@@ -28,7 +25,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const otp = generateOtp();
+    const otp           = generateOtp();           // CSPRNG — NOT Math.random()
+    const otpHash       = hashOtp(otp);            // HMAC-SHA256 — never store plaintext
     const expiryMinutes = await getOtpExpiryMinutes();
 
     // Invalidate any existing unused OTPs for this phone
@@ -37,11 +35,11 @@ export async function POST(req: NextRequest) {
       [phone]
     );
 
-    // Insert new OTP
+    // Insert hashed OTP — raw OTP never touches the database
     await query(
       `INSERT INTO customer_otps (phone, otp, expires_at)
        VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
-      [phone, otp, expiryMinutes]
+      [phone, otpHash, expiryMinutes]
     );
 
     const result = await sendOtp(phone, otp);
@@ -51,9 +49,10 @@ export async function POST(req: NextRequest) {
     }
 
     const response: Record<string, unknown> = { success: true, message: 'OTP sent successfully' };
-    // In dev mode, include the OTP in the response for easy testing
-    if (result.devMode) {
-      response.dev_otp = result.otp;
+    // In dev mode, include the OTP in the response for easy testing.
+    // NEVER expose in production — guarded by both devMode flag AND NODE_ENV check.
+    if (result.devMode && process.env.NODE_ENV !== 'production') {
+      response.dev_otp = otp;
     }
 
     return NextResponse.json(response);

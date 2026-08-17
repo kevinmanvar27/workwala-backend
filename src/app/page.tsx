@@ -1,171 +1,188 @@
-import Link from 'next/link';
 import { query } from '@/lib/db';
 import type { Metadata } from 'next';
-import { ShieldCheck, Users, SlidersHorizontal } from 'lucide-react';
+import './landing.css';
 
-async function getSiteSettings() {
+// ── Landing components ────────────────────────────────────────
+import Navbar        from '@/components/landing/Navbar';
+import Hero          from '@/components/landing/Hero';
+import TrustBar      from '@/components/landing/TrustBar';
+import Stats         from '@/components/landing/Stats';
+import Services      from '@/components/landing/Services';
+import HowItWorks    from '@/components/landing/HowItWorks';
+import MatchingMap   from '@/components/landing/MatchingMap';
+import Safety        from '@/components/landing/Safety';
+import CustomerApp   from '@/components/landing/CustomerApp';
+import PartnerSection from '@/components/landing/PartnerSection';
+import SpeedSection  from '@/components/landing/SpeedSection';
+import Pricing       from '@/components/landing/Pricing';
+import AdminPreview  from '@/components/landing/AdminPreview';
+import SecurityStrip from '@/components/landing/SecurityStrip';
+import Testimonials  from '@/components/landing/Testimonials';
+import FinalCTA      from '@/components/landing/FinalCTA';
+import Footer        from '@/components/landing/Footer';
+import ScrollReveal  from '@/components/landing/ScrollReveal';
+
+// ┅┅┅ Data fetchers ────────────────────────────────────────────────────────────
+
+async function getSiteSettings(): Promise<Record<string, string>> {
   try {
     const rows = await query<{ key_name: string; value: string }[]>(
-      `SELECT key_name, value FROM settings WHERE group_name = 'general' AND deleted_at IS NULL`
+      `SELECT key_name, value FROM settings WHERE deleted_at IS NULL`
     );
     const cfg: Record<string, string> = {};
     rows.forEach((r) => (cfg[r.key_name] = r.value));
     return cfg;
   } catch {
-    return { site_name: 'BasicFlow', site_tagline: 'Build something amazing' };
+    return {};
   }
 }
 
-// Homepage gets its own canonical so the root layout template doesn't add " | SiteName"
+async function getLandingStats() {
+  try {
+    function n(row: { count: unknown } | undefined): number {
+      return Number(row?.count ?? 0);
+    }
+    const [totalCustomers]    = await query<{ count: unknown }[]>(`SELECT COUNT(*) as count FROM customers WHERE deleted_at IS NULL`);
+    const [approvedPartners]  = await query<{ count: unknown }[]>(`SELECT COUNT(*) as count FROM partners WHERE deleted_at IS NULL AND status = 'approved'`);
+    const [completedBookings] = await query<{ count: unknown }[]>(`SELECT COUNT(*) as count FROM bookings WHERE deleted_at IS NULL AND status = 'completed'`);
+    const [totalCategories]   = await query<{ count: unknown }[]>(`SELECT COUNT(*) as count FROM categories WHERE deleted_at IS NULL AND is_active = 1`);
+    return {
+      totalCustomers:    n(totalCustomers),
+      approvedPartners:  n(approvedPartners),
+      completedBookings: n(completedBookings),
+      totalCategories:   n(totalCategories),
+    };
+  } catch {
+    return { totalCustomers: 0, approvedPartners: 0, completedBookings: 0, totalCategories: 0 };
+  }
+}
+
+async function getActiveCategories() {
+  try {
+    return await query<{
+      id: number;
+      name: string;
+      slug: string;
+      description: string | null;
+      price_per_hour: string;
+      bg_color: string;
+      border_color: string;
+    }[]>(
+      `SELECT id, name, slug, description, price_per_hour, bg_color, border_color
+       FROM categories
+       WHERE is_active = 1 AND deleted_at IS NULL
+       ORDER BY sort_order ASC, id ASC
+       LIMIT 10`
+    );
+  } catch {
+    return [];
+  }
+}
+
+async function getPublishedPages() {
+  try {
+    return await query<{ id: number; title: string; slug: string }[]>(
+      `SELECT id, title, slug FROM pages WHERE deleted_at IS NULL AND status = 'published' ORDER BY title ASC LIMIT 10`
+    );
+  } catch {
+    return [];
+  }
+}
+
+// ┅┅┅ Metadata ─────────────────────────────────────────────────────────────────
+
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const siteUrl  = (settings.site_url || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
-  return {
-    alternates: { canonical: siteUrl },
-  };
+  return { alternates: { canonical: siteUrl } };
 }
 
+// ┅┅┅ Page ─────────────────────────────────────────────────────────────────────
+
 export default async function HomePage() {
-  const settings = await getSiteSettings();
-  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'BasicFlow';
-  const tagline  = settings.site_tagline || 'Build something amazing';
-  const siteLogo = settings.site_logo?.trim() || '';
+  const [settings, stats, categories, pages] = await Promise.all([
+    getSiteSettings(),
+    getLandingStats(),
+    getActiveCategories(),
+    getPublishedPages(),
+  ]);
+
+  const siteName  = settings.site_name    || process.env.NEXT_PUBLIC_SITE_NAME || 'WorkWala';
+  const tagline   = settings.site_tagline || 'Trusted help, right when you need it.';
+  const siteLogo  = settings.site_logo?.trim() || '';
+  const copyright = settings.copyright_text || `© ${new Date().getFullYear()} ${siteName}. All rights reserved.`;
+  const description = settings.site_description || '';
+
+  const playstoreCustomer = settings.playstore_customer_url?.trim() || '#';
+  const appstoreCustomer  = settings.appstore_customer_url?.trim()  || '#';
 
   return (
-    <div className="min-h-screen text-white" style={{ background: 'linear-gradient(135deg, var(--sidebar-bg) 0%, var(--primary) 60%, var(--sidebar-bg) 100%)' }}>
+    <div className="landing-root">
+      {/* Scroll-triggered reveal observer */}
+      <ScrollReveal />
 
-      {/* Navbar */}
-      <nav className="border-b border-white/10 backdrop-blur-sm bg-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-
-          {/* Logo — image if set, otherwise site name text */}
-          <Link href="/" className="flex items-center flex-shrink-0">
-            {siteLogo ? (
-              <div className="bg-white/95 backdrop-blur-sm rounded-xl px-3 py-1.5 flex items-center justify-center shadow-sm border border-white/20">
-                <img
-                  src={siteLogo}
-                  alt={siteName}
-                  className="h-8 max-w-[148px] object-contain"
-                />
-              </div>
-            ) : (
-              <span className="text-xl font-bold text-white">{siteName}</span>
-            )}
-          </Link>
-
-          <div className="flex items-center gap-4">
-            <Link href="/pages" className="text-sm text-white/70 hover:text-white transition-colors">
-              Pages
-            </Link>
-            <Link
-              href="/login"
-              className="text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-              style={{ backgroundColor: 'var(--accent)' }}
-            >
-              Admin Login
-            </Link>
-          </div>
-        </div>
-      </nav>
+      {/* Navigation */}
+      <Navbar siteName={siteName} siteLogo={siteLogo} pages={pages} />
 
       {/* Hero */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
-        {/* Badge */}
-        <div
-          className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm mb-8"
-          style={{
-            backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)',
-            color: 'color-mix(in srgb, var(--accent) 80%, white)',
-          }}
-        >
-          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }} />
-          Welcome to {siteName}
-        </div>
+      <Hero
+        siteName={siteName}
+        tagline={tagline}
+        description={description}
+        playstoreCustomer={playstoreCustomer}
+        appstoreCustomer={appstoreCustomer}
+      />
 
-        {/* Headline */}
-        <h1
-          className="text-5xl sm:text-7xl font-bold mb-6 bg-clip-text text-transparent"
-          style={{ backgroundImage: 'linear-gradient(to right, white, color-mix(in srgb, var(--light-purple) 80%, white), var(--accent))' }}
-        >
-          {tagline}
-        </h1>
+      {/* Trust bar */}
+      <TrustBar />
 
-        <p className="text-xl text-white/60 max-w-2xl mx-auto mb-12">
-          A professional Next.js admin panel with role-based access control, user management, and powerful settings.
-        </p>
+      {/* Live stats (only shown when real data exists) */}
+      <Stats stats={stats} />
 
-        <div className="flex flex-wrap items-center justify-center gap-4">
-          <Link
-            href="/login"
-            className="text-white font-semibold px-8 py-3 rounded-xl transition-all hover:scale-105 shadow-lg"
-            style={{
-              backgroundColor: 'var(--accent)',
-              boxShadow: 'color-mix(in srgb, var(--accent) 25%, transparent) 0 8px 24px',
-            }}
-          >
-            Get Started →
-          </Link>
-          <Link
-            href="/pages"
-            className="border border-white/20 hover:border-white/40 text-white font-semibold px-8 py-3 rounded-xl transition-all hover:bg-white/5"
-          >
-            Browse Pages
-          </Link>
-        </div>
+      {/* Services */}
+      <Services categories={categories} settings={settings} />
 
-        {/* Feature cards — proper icon containers replacing raw emoji stickers */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-24">
-          {[
-            {
-              icon: <ShieldCheck size={22} />,
-              iconBg: 'color-mix(in srgb, var(--accent) 18%, transparent)',
-              iconColor: 'color-mix(in srgb, var(--accent) 90%, white)',
-              title: 'Role-Based Access',
-              desc: 'Fine-grained permission control for every module',
-            },
-            {
-              icon: <Users size={22} />,
-              iconBg: 'color-mix(in srgb, var(--primary) 30%, transparent)',
-              iconColor: 'color-mix(in srgb, var(--light-purple) 90%, white)',
-              title: 'User Management',
-              desc: 'Full CRUD with soft delete and profile uploads',
-            },
-            {
-              icon: <SlidersHorizontal size={22} />,
-              iconBg: 'rgba(255,255,255,0.08)',
-              iconColor: 'rgba(255,255,255,0.85)',
-              title: 'Settings Panel',
-              desc: 'General, social, payment, and mail configuration',
-            },
-          ].map((f) => (
-            <div
-              key={f.title}
-              className="bg-white/5 border border-white/10 rounded-2xl p-6 text-left hover:bg-white/10 transition-colors group"
-            >
-              {/* Icon container — replaces raw emoji */}
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110"
-                style={{ backgroundColor: f.iconBg, color: f.iconColor }}
-              >
-                {f.icon}
-              </div>
-              <h3 className="font-semibold text-white mb-1">{f.title}</h3>
-              <p className="text-sm text-white/60">{f.desc}</p>
-            </div>
-          ))}
-        </div>
-      </main>
+      {/* How It Works */}
+      <HowItWorks settings={settings} />
+
+      {/* Real-time Matching Map */}
+      <MatchingMap />
+
+      {/* Safety & Trust */}
+      <Safety settings={settings} />
+
+      {/* Customer App */}
+      <CustomerApp />
+
+      {/* Partner Section */}
+      <PartnerSection settings={settings} />
+
+      {/* Speed / Simplicity */}
+      <SpeedSection />
+
+      {/* Transparent Pricing */}
+      <Pricing settings={settings} />
+
+      {/* Admin Preview */}
+      <AdminPreview />
+
+      {/* Security strip */}
+      <SecurityStrip />
+
+      {/* Testimonials */}
+      <Testimonials />
+
+      {/* Final CTA */}
+      <FinalCTA settings={settings} />
 
       {/* Footer */}
-      <footer className="border-t border-white/10 mt-24 py-8 text-center text-sm text-white/40">
-        <div className="flex items-center justify-center gap-6">
-          <Link href="/pages/privacy-policy" className="hover:text-white/70 transition-colors">Privacy Policy</Link>
-          <Link href="/pages/terms-of-service" className="hover:text-white/70 transition-colors">Terms of Service</Link>
-          <Link href="/delete-account" className="hover:text-white/70 transition-colors">Delete Account</Link>
-        </div>
-        <p className="mt-4">© {new Date().getFullYear()} {siteName}. All rights reserved.</p>
-      </footer>
+      <Footer
+        siteName={siteName}
+        siteLogo={siteLogo}
+        copyright={copyright}
+        settings={settings}
+        pages={pages}
+      />
     </div>
   );
 }

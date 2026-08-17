@@ -55,6 +55,12 @@ export async function POST(req: NextRequest) {
     if (!name || !slug) {
       return NextResponse.json({ error: 'Name and slug are required' }, { status: 400 });
     }
+    if (name.length > 100) {
+      return NextResponse.json({ error: 'Name must be 100 characters or fewer' }, { status: 400 });
+    }
+    if (slug.length > 100) {
+      return NextResponse.json({ error: 'Slug must be 100 characters or fewer' }, { status: 400 });
+    }
 
     const existing = await query<{ id: number }[]>(
       `SELECT id FROM roles WHERE slug = ? AND deleted_at IS NULL`, [slug]

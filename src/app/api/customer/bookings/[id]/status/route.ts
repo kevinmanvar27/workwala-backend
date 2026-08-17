@@ -1,26 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { verifyToken } from '@/lib/jwt';
+import { requireMobileAuth } from '@/lib/mobileAuth';
 
 // GET /api/customer/bookings/[id]/status
 // Returns the current status of a booking, plus partner info when matched.
+// NOTE: otp_code is intentionally NOT returned here — the OTP is shown to the
+// customer via the partner app. The customer never needs the raw OTP hash.
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const payload = verifyToken(token);
-    if (!payload || payload.roleSlug !== 'customer') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
+    if (authError) return authError;
 
     const { id } = await params;
     const bookingId = parseInt(id, 10);
-    if (isNaN(bookingId)) {
+    if (isNaN(bookingId) || bookingId <= 0) {
       return NextResponse.json({ error: 'Invalid booking id' }, { status: 400 });
     }
 
@@ -30,9 +26,8 @@ export async function GET(
       partner_id: number | null;
       partner_name: string | null;
       partner_phone: string | null;
-      otp_code: string | null;
     }>>(
-      `SELECT b.id, b.status, b.partner_id, b.otp_code,
+      `SELECT b.id, b.status, b.partner_id,
               COALESCE(p.name, p.phone) AS partner_name,
               p.phone AS partner_phone
        FROM bookings b
@@ -54,8 +49,7 @@ export async function GET(
       partner_id: b.partner_id ?? null,
       partner_name: b.partner_name ?? null,
       partner_phone: b.partner_phone ?? null,
-      // Only expose OTP when a partner has been matched
-      otp_code: b.status === 'matched' || b.status === 'in_progress' ? (b.otp_code ?? null) : null,
+      // otp_code is deliberately omitted — the customer never needs the hash
     });
   } catch (err) {
     console.error('booking status GET error:', err);

@@ -73,6 +73,8 @@ export default function AdminPagesPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#E0E0E0]">
+                {/* Sr. No. column header */}
+                <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5 w-12">Sr.</th>
                 <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5">Title</th>
                 <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5 hidden md:table-cell">Slug</th>
                 <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5">Status</th>
@@ -84,6 +86,8 @@ export default function AdminPagesPage() {
               {loading ? (
                 [...Array(4)].map((_, i) => (
                   <tr key={i} className="border-b border-[#F9F9F9]">
+                    {/* Sr. No. skeleton */}
+                    <td className="px-6 py-4"><div className="h-3 bg-[var(--light-purple)] rounded w-6 animate-pulse" /></td>
                     <td className="px-6 py-4"><div className="h-4 bg-[var(--light-purple)] rounded w-40 animate-pulse" /></td>
                     <td className="px-6 py-4 hidden md:table-cell"><div className="h-3 bg-[var(--light-purple)] rounded w-28 animate-pulse" /></td>
                     <td className="px-6 py-4"><div className="h-5 bg-[var(--light-purple)] rounded-full w-20 animate-pulse" /></td>
@@ -93,7 +97,7 @@ export default function AdminPagesPage() {
                 ))
               ) : pages.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center">
+                  <td colSpan={6} className="px-6 py-20 text-center">
                     <div className="w-14 h-14 bg-[var(--light-purple)] rounded-2xl flex items-center justify-center mx-auto mb-4">
                       <FileText size={24} style={{ color: 'var(--primary)' }} />
                     </div>
@@ -104,8 +108,12 @@ export default function AdminPagesPage() {
                   </td>
                 </tr>
               ) : (
-                pages.map((p) => (
+                pages.map((p, index) => (
                   <tr key={p.id} className="border-b border-[#F9F9F9] last:border-0 hover:bg-[#F9F9F9]/60 transition-colors">
+                    {/* Sr. No. cell */}
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-medium text-[#757575]">{(page - 1) * limit + index + 1}</span>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 bg-[var(--light-purple)] rounded-lg flex items-center justify-center flex-shrink-0">
@@ -128,7 +136,7 @@ export default function AdminPagesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 hidden lg:table-cell">
-                      <span className="text-xs text-[#757575]">{new Date(p.created_at).toLocaleDateString()}</span>
+                      <span className="text-xs text-[#757575]">{new Date(p.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">

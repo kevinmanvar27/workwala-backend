@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { verifyToken } from '@/lib/jwt';
+import { requireMobileAuth } from '@/lib/mobileAuth';
 
 // POST /api/customer/bookings — create a new booking
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const payload = verifyToken(token);
-    if (!payload || payload.roleSlug !== 'customer') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
+    if (authError) return authError;
 
     const { service_id, duration_minutes, address } = await req.json();
 
@@ -27,6 +21,10 @@ export async function POST(req: NextRequest) {
         { error: 'duration_minutes must be a multiple of 30 and at least 30' },
         { status: 400 }
       );
+    }
+    // Validate address length to prevent oversized payloads
+    if (typeof address !== 'string' || address.length > 500) {
+      return NextResponse.json({ error: 'address must be a string of at most 500 characters' }, { status: 400 });
     }
 
     // Fetch service + linked category to get the correct live price
@@ -70,7 +68,10 @@ export async function POST(req: NextRequest) {
     if (coordParts.length === 2) {
       const parsedLat = parseFloat(coordParts[0].trim());
       const parsedLng = parseFloat(coordParts[1].trim());
-      if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+      // Validate coordinate ranges
+      if (!isNaN(parsedLat) && !isNaN(parsedLng) &&
+          parsedLat >= -90 && parsedLat <= 90 &&
+          parsedLng >= -180 && parsedLng <= 180) {
         bookingLat = parsedLat;
         bookingLng = parsedLng;
       }
@@ -102,14 +103,8 @@ export async function POST(req: NextRequest) {
 // GET /api/customer/bookings?id=:bookingId — poll booking status
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const payload = verifyToken(token);
-    if (!payload || payload.roleSlug !== 'customer') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
+    if (authError) return authError;
 
     const { searchParams } = new URL(req.url);
     const bookingId = searchParams.get('id');

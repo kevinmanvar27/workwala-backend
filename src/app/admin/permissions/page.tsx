@@ -13,6 +13,8 @@ const MODULE_COLORS: Record<string, { bg: string; icon: string; badge: string }>
   pages:         { bg: 'bg-green-50',               icon: 'text-[#2E7D32]',             badge: 'bg-green-50 text-[#2E7D32]' },
   settings:      { bg: 'bg-amber-50',               icon: 'text-amber-600',             badge: 'bg-amber-100 text-amber-700' },
   activity_logs: { bg: 'bg-[color-mix(in_srgb,var(--accent)_12%,white)]', icon: 'text-[var(--accent)]', badge: 'bg-[color-mix(in_srgb,var(--accent)_12%,white)] text-[var(--accent)]' },
+  notifications: { bg: 'bg-blue-50',               icon: 'text-blue-600',              badge: 'bg-blue-50 text-blue-700' },
+  coupons:       { bg: 'bg-orange-50',              icon: 'text-orange-600',            badge: 'bg-orange-50 text-orange-700' },
 };
 
 const defaultColor = { bg: 'bg-[#F9F9F9]', icon: 'text-[#757575]', badge: 'bg-[var(--light-purple)] text-[var(--primary)]' };
