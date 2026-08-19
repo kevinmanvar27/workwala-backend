@@ -73,7 +73,7 @@ export async function middleware(request: NextRequest) {
  * allowing the GA snippet and Next.js inline scripts to execute.
  */
 function applyNonce(response: NextResponse, request: NextRequest): NextResponse {
-  const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString('base64');
+  const nonce = Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(16))).toString('base64');
 
   // Pass nonce to the RSC layer via a request header
   const requestHeaders = new Headers(request.headers);
