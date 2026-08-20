@@ -26,11 +26,13 @@ export interface JWTPayload {
 }
 
 /**
- * Signs a short-lived access token (15 minutes).
- * Use signRefreshToken() alongside this and rotate on every refresh.
+ * Signs a long-lived access token (30 days) for mobile clients.
+ * Security is maintained via tokenVersion — incrementing it in the DB
+ * (on logout or account suspension) immediately invalidates all issued tokens.
+ * No refresh-token rotation is needed for a mobile-only OTP-based auth flow.
  */
 export function signToken(payload: JWTPayload): string {
-  return jwt.sign(payload, JWT_SECRET!, { expiresIn: '15m' });
+  return jwt.sign(payload, JWT_SECRET!, { expiresIn: '30d' });
 }
 
 /**

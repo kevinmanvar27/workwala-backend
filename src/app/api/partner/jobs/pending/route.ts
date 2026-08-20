@@ -23,13 +23,26 @@ export async function GET(req: NextRequest) {
     const { error: authError, user: payload } = await requireMobileAuth(req, 'partner');
     if (authError) return authError;
 
-    // Fetch partner's last known location (saved when they went online)
-    const partnerRows = await query<{ lat: number | null; lng: number | null }[]>(
-      `SELECT lat, lng FROM partners WHERE id = ? LIMIT 1`,
+    // Fetch partner's last known location and registered service categories
+    const partnerRows = await query<{ lat: number | null; lng: number | null; categories: string | null }[]>(
+      `SELECT lat, lng, categories FROM partners WHERE id = ? LIMIT 1`,
       [payload.userId]
     );
     const partnerLat = partnerRows[0]?.lat ?? null;
     const partnerLng = partnerRows[0]?.lng ?? null;
+
+    // Parse partner's registered service categories (e.g. ["Driver", "Cooking"])
+    // If categories is empty/null, the partner sees no jobs.
+    let partnerCategories: string[] = [];
+    try {
+      partnerCategories = JSON.parse(partnerRows[0]?.categories || '[]');
+    } catch {
+      partnerCategories = [];
+    }
+
+    if (partnerCategories.length === 0) {
+      return NextResponse.json({ success: true, job: null });
+    }
 
     type BookingRow = {
       id: number;
@@ -44,7 +57,8 @@ export async function GET(req: NextRequest) {
       lng: number | null;
     };
 
-    // Fetch all pending jobs (no distance filter yet — we'll resolve coords from address too)
+    // Fetch pending jobs whose service name matches one of the partner's registered categories
+    const placeholders = partnerCategories.map(() => '?').join(', ');
     const bookings = await query<BookingRow[]>(
       `SELECT
          b.id,
@@ -62,8 +76,9 @@ export async function GET(req: NextRequest) {
        JOIN customers c ON c.id = b.customer_id
        WHERE b.status = 'finding'
          AND b.partner_id IS NULL
+         AND s.name IN (${placeholders})
        ORDER BY b.created_at DESC`,
-      []
+      [...partnerCategories]
     );
 
     if (bookings.length === 0) {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { apiFetch } from '@/lib/apiFetch';
 import { ArrowLeft, Upload, X, Camera } from 'lucide-react';
 
 interface Role { id: number; name: string; }
@@ -47,7 +48,7 @@ export default function UserForm({ userId }: UserFormProps) {
       const payload: Record<string, string> = { name: form.name, email: form.email, role_id: form.role_id, status: form.status };
       if (form.password) payload.password = form.password;
 
-      const res = await fetch(isEdit ? `/api/admin/users/${userId}` : '/api/admin/users', {
+      const res = await apiFetch(isEdit ? `/api/admin/users/${userId}` : '/api/admin/users', {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -59,7 +60,7 @@ export default function UserForm({ userId }: UserFormProps) {
       if (avatarFile && savedId) {
         const fd = new FormData();
         fd.append('avatar', avatarFile);
-        const ar = await fetch(`/api/admin/users/${savedId}/avatar`, { method: 'POST', body: fd });
+        const ar = await apiFetch(`/api/admin/users/${savedId}/avatar`, { method: 'POST', body: fd });
         if (!ar.ok) toast.error('User saved but avatar upload failed');
       }
 

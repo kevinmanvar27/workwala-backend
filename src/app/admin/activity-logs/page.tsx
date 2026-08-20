@@ -6,6 +6,7 @@ import {
   User, Shield, FileText, Settings, Key, LogIn, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface ActivityLog {
   id: number;
@@ -115,7 +116,7 @@ function ActivityLogsContent() {
     if (!confirm('Clear all activity logs? This cannot be undone.')) return;
     setClearing(true);
     try {
-      await fetch('/api/admin/activity-logs', { method: 'DELETE' });
+      await apiFetch('/api/admin/activity-logs', { method: 'DELETE' });
       setLogs([]);
       setTotal(0);
     } finally {

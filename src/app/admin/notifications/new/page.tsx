@@ -10,6 +10,7 @@ import {
   Megaphone, UserCheck, Briefcase, Filter, Pencil,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -339,7 +340,7 @@ function NewNotificationPageInner() {
   const fetchAudiencePreview = useCallback(async () => {
     setPreviewLoading(true);
     try {
-      const res = await fetch('/api/admin/push-notifications/audience-preview', {
+      const res = await apiFetch('/api/admin/push-notifications/audience-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ audience_type: form.audience_type, audience_filters: form.audience_filters }),
@@ -417,14 +418,14 @@ function NewNotificationPageInner() {
 
       if (isEdit && editId) {
         // ── PATCH: update existing notification ──────────────────────────────
-        res = await fetch('/api/admin/push-notifications', {
+        res = await apiFetch('/api/admin/push-notifications', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: parseInt(editId), ...payload }),
         });
       } else {
         // ── POST: create new notification ────────────────────────────────────
-        res = await fetch('/api/admin/push-notifications', {
+        res = await apiFetch('/api/admin/push-notifications', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),

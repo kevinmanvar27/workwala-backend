@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { apiFetch } from '@/lib/apiFetch';
 import { ArrowLeft, Shield } from 'lucide-react';
 
 interface Permission { id: number; name: string; slug: string; module: string; }
@@ -43,7 +44,7 @@ export default function RoleForm({ roleId }: RoleFormProps) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch(isEdit ? `/api/admin/roles/${roleId}` : '/api/admin/roles', {
+      const res = await apiFetch(isEdit ? `/api/admin/roles/${roleId}` : '/api/admin/roles', {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, permissions: selectedPerms }),

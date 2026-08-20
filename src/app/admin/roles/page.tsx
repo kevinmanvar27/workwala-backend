@@ -5,6 +5,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { Plus, Search, Pencil, Trash2, Shield, Users, Key, ChevronLeft, ChevronRight } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface RoleRow {
   id: number; name: string; slug: string; description: string;
@@ -37,7 +38,7 @@ export default function RolesPage() {
 
   const handleDelete = async (id: number, name: string) => {
     if (!confirm(`Delete role "${name}"? Users with this role will lose it.`)) return;
-    const res = await fetch(`/api/admin/roles/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/admin/roles/${id}`, { method: 'DELETE' });
     if (res.ok) { toast.success('Role deleted'); fetchRoles(); }
     else toast.error('Failed to delete role');
   };

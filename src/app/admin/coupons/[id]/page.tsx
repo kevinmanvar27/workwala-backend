@@ -12,6 +12,7 @@ import {
   UserPlus, Repeat2, Star, User, UserCheck,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -202,7 +203,7 @@ export default function CouponDetailPage() {
     if (coupon.status === 'active') { setShowDeactivateConfirm(true); return; }
     setToggling(true);
     try {
-      const res = await fetch('/api/admin/coupons', {
+      const res = await apiFetch('/api/admin/coupons', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: coupon.id, status: 'active' }),
@@ -219,7 +220,7 @@ export default function CouponDetailPage() {
     setShowDeactivateConfirm(false);
     setToggling(true);
     try {
-      const res = await fetch('/api/admin/coupons', {
+      const res = await apiFetch('/api/admin/coupons', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: coupon.id, status: 'deactivated' }),
@@ -238,7 +239,7 @@ export default function CouponDetailPage() {
     if (!confirm(`Delete coupon "${coupon.code}"? This cannot be undone.`)) return;
     setDeleting(true);
     try {
-      const res = await fetch('/api/admin/coupons', {
+      const res = await apiFetch('/api/admin/coupons', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: coupon.id }),

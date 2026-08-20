@@ -11,6 +11,7 @@ import {
   Link2, Image, Tag, Filter, Copy, Trash2, Pencil,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -141,7 +142,7 @@ export default function NotificationDetailPage() {
     if (!confirm(`Send "${notif.title}" now to all targeted recipients?`)) return;
     setActionLoading(true);
     try {
-      const res = await fetch('/api/admin/push-notifications', {
+      const res = await apiFetch('/api/admin/push-notifications', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: notif.id, action: 'send' }),
@@ -158,7 +159,7 @@ export default function NotificationDetailPage() {
     if (!confirm(`Cancel scheduled notification "${notif.title}"?`)) return;
     setActionLoading(true);
     try {
-      const res = await fetch('/api/admin/push-notifications', {
+      const res = await apiFetch('/api/admin/push-notifications', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: notif.id, action: 'cancel' }),
@@ -175,7 +176,7 @@ export default function NotificationDetailPage() {
     if (!confirm(`Delete notification "${notif.title}"? This cannot be undone.`)) return;
     setActionLoading(true);
     try {
-      const res = await fetch('/api/admin/push-notifications', {
+      const res = await apiFetch('/api/admin/push-notifications', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: notif.id }),

@@ -53,6 +53,11 @@ export async function POST(req: NextRequest) {
     // NEVER expose in production — guarded by both devMode flag AND NODE_ENV check.
     if (result.devMode && process.env.NODE_ENV !== 'production') {
       response.dev_otp = otp;
+      console.log(`\n┌─────────────────────────────────┐`);
+      console.log(`│  [DEV] CUSTOMER OTP             │`);
+      console.log(`│  Phone : ${phone}          │`);
+      console.log(`│  OTP   : ${otp}                  │`);
+      console.log(`└─────────────────────────────────┘\n`);
     }
 
     return NextResponse.json(response);

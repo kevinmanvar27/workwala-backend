@@ -3,9 +3,7 @@ import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
 
 // GET /api/customer/bookings/[id]/status
-// Returns the current status of a booking, plus partner info when matched.
-// NOTE: otp_code is intentionally NOT returned here — the OTP is shown to the
-// customer via the partner app. The customer never needs the raw OTP hash.
+// Returns the current status of a booking, plus partner info and OTP when matched.
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -26,10 +24,18 @@ export async function GET(
       partner_id: number | null;
       partner_name: string | null;
       partner_phone: string | null;
+      otp_plaintext: string | null;
+      duration_minutes: number;
+      started_at: Date | null;
+      total_price: string;
     }>>(
       `SELECT b.id, b.status, b.partner_id,
               COALESCE(p.name, p.phone) AS partner_name,
-              p.phone AS partner_phone
+              p.phone AS partner_phone,
+              b.otp_plaintext,
+              b.duration_minutes,
+              b.started_at,
+              b.total_price
        FROM bookings b
        LEFT JOIN partners p ON p.id = b.partner_id
        WHERE b.id = ? AND b.customer_id = ?
@@ -49,7 +55,10 @@ export async function GET(
       partner_id: b.partner_id ?? null,
       partner_name: b.partner_name ?? null,
       partner_phone: b.partner_phone ?? null,
-      // otp_code is deliberately omitted — the customer never needs the hash
+      otp_code: b.otp_plaintext ?? null,
+      duration_minutes: b.duration_minutes,
+      started_at: b.started_at?.toISOString() ?? null,
+      total_price: parseFloat(b.total_price as unknown as string),
     });
   } catch (err) {
     console.error('booking status GET error:', err);

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { Plus, Search, Pencil, Trash2, Users, ChevronLeft, ChevronRight, RotateCcw, Inbox } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface UserRow {
   id: number; name: string; email: string; avatar?: string;
@@ -44,14 +45,14 @@ export default function UsersPage() {
 
   const handleDelete = async (id: number, name: string) => {
     if (!confirm(`Soft-delete user "${name}"?`)) return;
-    const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
     if (res.ok) { toast.success('User removed'); fetchUsers(); }
     else toast.error('Failed to delete user');
   };
 
   const handleRestore = async (id: number, name: string) => {
     if (!confirm(`Restore user "${name}"?`)) return;
-    const res = await fetch(`/api/admin/users/${id}`, { method: 'PATCH' });
+    const res = await apiFetch(`/api/admin/users/${id}`, { method: 'PATCH' });
     if (res.ok) { toast.success(`"${name}" restored`); fetchUsers(); }
     else toast.error('Failed to restore user');
   };

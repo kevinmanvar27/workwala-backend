@@ -10,6 +10,7 @@ import {
   Tag, Calendar, Users, Percent, DollarSign, X,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ export default function CouponsPage() {
     }
     setToggling(coupon.id);
     try {
-      const res = await fetch('/api/admin/coupons', {
+      const res = await apiFetch('/api/admin/coupons', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: coupon.id, status: newStatus }),
@@ -157,7 +158,7 @@ export default function CouponsPage() {
     if (!confirm(`Delete coupon "${coupon.code}"? This cannot be undone.`)) return;
     setDeleting(coupon.id);
     try {
-      const res = await fetch('/api/admin/coupons', {
+      const res = await apiFetch('/api/admin/coupons', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: coupon.id }),

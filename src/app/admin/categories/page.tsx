@@ -7,6 +7,7 @@ import {
   Tag, X, Check, Loader2, GripVertical,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -120,7 +121,7 @@ export default function CategoriesPage() {
         sort_order:    parseInt(form.sort_order) || 0,
       };
 
-      const res  = await fetch('/api/admin/categories', {
+      const res  = await apiFetch('/api/admin/categories', {
         method:  isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
@@ -145,7 +146,7 @@ export default function CategoriesPage() {
 
   const handleToggle = async (cat: Category) => {
     try {
-      const res = await fetch('/api/admin/categories', {
+      const res = await apiFetch('/api/admin/categories', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ id: cat.id, is_active: cat.is_active === 0 }),
@@ -165,7 +166,7 @@ export default function CategoriesPage() {
     if (!confirm(`Delete category "${cat.name}"? This cannot be undone.`)) return;
     setDeleting(cat.id);
     try {
-      const res = await fetch('/api/admin/categories', {
+      const res = await apiFetch('/api/admin/categories', {
         method:  'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ id: cat.id }),

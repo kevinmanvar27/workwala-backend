@@ -3,6 +3,11 @@ import { query } from '@/lib/db';
 import { signToken } from '@/lib/jwt';
 import { hashOtp } from '@/lib/otpUtils';
 
+// ── Dev bypass OTP ────────────────────────────────────────────────────────────
+// In non-production environments, OTP "123456" always passes verification.
+// NEVER active in production (NODE_ENV === 'production').
+const DEV_BYPASS_OTP = '123456';
+
 // POST /api/customer/auth/verify-otp
 export async function POST(req: NextRequest) {
   try {
@@ -13,6 +18,29 @@ export async function POST(req: NextRequest) {
     }
     if (!otp || otp.length !== 6) {
       return NextResponse.json({ error: 'Invalid OTP' }, { status: 400 });
+    }
+
+    // ── Dev bypass: skip DB OTP check entirely ────────────────────────────────
+    if (process.env.NODE_ENV !== 'production' && otp === DEV_BYPASS_OTP) {
+      const customers = await query<{ id: number; name: string | null; token_version: number }[]>(
+        `SELECT id, name, token_version FROM customers WHERE phone = ? AND deleted_at IS NULL LIMIT 1`,
+        [phone]
+      );
+      let customerId: number;
+      let isNewUser: boolean;
+      let tokenVersion: number;
+      if (customers.length === 0) {
+        const result = await query<{ insertId: number }>(
+          `INSERT INTO customers (phone) VALUES (?)`, [phone]
+        );
+        customerId = result.insertId; isNewUser = true; tokenVersion = 1;
+      } else {
+        customerId = customers[0].id; isNewUser = false;
+        tokenVersion = customers[0].token_version ?? 1;
+      }
+      const token = signToken({ userId: customerId, email: phone, roleSlug: 'customer', roleName: 'Customer', tokenVersion });
+      console.log(`[DEV BYPASS] Customer login for ${phone}`);
+      return NextResponse.json({ success: true, token, customer_id: customerId, is_new_user: isNewUser });
     }
 
     // Find the latest unused, non-expired OTP for this phone

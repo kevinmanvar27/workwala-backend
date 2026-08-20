@@ -44,16 +44,18 @@ export async function POST(req: NextRequest) {
     const otp     = generateOtp();
     const otpHash = hashBookingOtp(otp); // Store hash, return plaintext to partner app only
 
-    // Atomically claim the booking: only succeeds if still in 'finding' state
+    // Atomically claim the booking: only succeeds if still in 'finding' state.
+    // Store both the hash (for partner verification) and plaintext (for customer display).
     const result = await query<{ affectedRows: number }>(
       `UPDATE bookings
-          SET status     = 'matched',
-              partner_id = ?,
-              otp_code   = ?
+          SET status        = 'matched',
+              partner_id    = ?,
+              otp_code      = ?,
+              otp_plaintext = ?
         WHERE id = ?
           AND status = 'finding'
           AND partner_id IS NULL`,
-      [payload.userId, otpHash, booking_id]
+      [payload.userId, otpHash, otp, booking_id]
     );
 
     if (result.affectedRows === 0) {

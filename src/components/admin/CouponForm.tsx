@@ -12,6 +12,7 @@ import {
   LayoutGrid, Zap,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -268,7 +269,7 @@ export default function CouponFormPage({
   const generateCode = async () => {
     setGenerating(true);
     try {
-      const res = await fetch('/api/admin/coupons/generate-code', {
+      const res = await apiFetch('/api/admin/coupons/generate-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ length: parseInt(form.code_length) || 8, prefix: form.code_prefix }),
@@ -351,7 +352,7 @@ export default function CouponFormPage({
         audience_type: form.audience_type,
       };
 
-      const res = await fetch('/api/admin/coupons', {
+      const res = await apiFetch('/api/admin/coupons', {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

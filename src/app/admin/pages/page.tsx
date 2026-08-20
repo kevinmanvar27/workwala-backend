@@ -5,6 +5,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { Plus, Search, Pencil, Trash2, FileText, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface PageRow { id: number; title: string; slug: string; status: string; created_at: string; }
 
@@ -30,7 +31,7 @@ export default function AdminPagesPage() {
 
   const handleDelete = async (id: number, title: string) => {
     if (!confirm(`Delete page "${title}"?`)) return;
-    const res = await fetch(`/api/admin/pages/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/admin/pages/${id}`, { method: 'DELETE' });
     if (res.ok) { toast.success('Page deleted'); fetchPages(); }
     else toast.error('Failed to delete page');
   };

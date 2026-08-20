@@ -44,38 +44,45 @@ export async function GET(req: NextRequest) {
     // Return the raw relative path — Flutter prepends its own baseUrl.
     const selfiePath = partner.selfie ?? null;
 
-    // Today's earnings — sum from partner_earnings if table exists, else 0
-    let todayEarnings = 0;
-    let todayJobs = 0;
-    try {
-      const [earningsRow] = await query<{ total: number; jobs: number }[]>(
-        `SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS jobs
-         FROM partner_earnings
-         WHERE partner_id = ? AND DATE(created_at) = CURDATE()`,
-        [partner.id]
-      );
-      todayEarnings = Number(earningsRow?.total ?? 0);
-      todayJobs     = Number(earningsRow?.jobs  ?? 0);
-    } catch {
-      // table doesn't exist yet — return zeros
-    }
+    // ── Today's earnings & jobs — sourced directly from the bookings table ──
+    // Counts completed bookings for this partner where completed_at is today.
+    // This is the single source of truth since there is no partner_earnings table.
+    const [earningsRow] = await query<{ today_earnings: number; today_jobs: number }[]>(
+      `SELECT
+         COALESCE(SUM(total_price), 0) AS today_earnings,
+         COUNT(*)                       AS today_jobs
+       FROM bookings
+       WHERE partner_id   = ?
+         AND status       = 'completed'
+         AND deleted_at   IS NULL
+         AND DATE(completed_at) = CURDATE()`,
+      [partner.id]
+    );
+
+    const todayEarnings = Number(earningsRow?.today_earnings ?? 0);
+    const todayJobs     = Number(earningsRow?.today_jobs     ?? 0);
+
+    // ── Total (all-time) earnings — used as the wallet balance ──────────────
+    // The partners.balance column is credited per booking in the complete route,
+    // so it already reflects cumulative earnings. Use it directly.
+    const balance = Number(partner.balance ?? 0);
 
     return NextResponse.json({
-      success: true,
+      success:         true,
       profile_complete: profileComplete,
-      partner_status: partner.status,
-      name:           partner.name    ?? '',
-      phone:          partner.phone,
-      gender:         partner.gender  ?? '',
-      language:       partner.language ?? '',
-      categories:     (() => { try { return JSON.parse(partner.categories || '[]'); } catch { return []; } })(),
-      team_option:    partner.team_option  ?? '',
-      vehicle_type:   partner.vehicle_type ?? '',
-      rating:         partner.rating  ?? 0,
-      balance:        partner.balance ?? 0,
-      today_earnings: todayEarnings,
-      today_jobs:     todayJobs,
-      selfie_url:     selfiePath,
+      partner_status:  partner.status,
+      name:            partner.name    ?? '',
+      phone:           partner.phone,
+      gender:          partner.gender  ?? '',
+      language:        partner.language ?? '',
+      categories:      (() => { try { return JSON.parse(partner.categories || '[]'); } catch { return []; } })(),
+      team_option:     partner.team_option  ?? '',
+      vehicle_type:    partner.vehicle_type ?? '',
+      rating:          partner.rating  ?? 0,
+      balance,
+      today_earnings:  todayEarnings,
+      today_jobs:      todayJobs,
+      selfie_url:      selfiePath,
     });
   } catch (err) {
     console.error('profile/me error:', err);

@@ -6,6 +6,7 @@ import {
   UserCheck, TrendingUp, Package, Layers, FileText, Activity,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 import WorldMap from '@/components/admin/WorldMap';
 import {
   ResponsiveContainer,
@@ -410,7 +411,7 @@ function AnalyticsContent() {
     if (!confirm('This will permanently clear all activity log data. This cannot be undone. Continue?')) return;
     setClearing(true);
     try {
-      const res = await fetch('/api/admin/analytics', { method: 'DELETE' });
+      const res = await apiFetch('/api/admin/analytics', { method: 'DELETE' });
       if (res.ok) {
         await fetchData(true);
       }

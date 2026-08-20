@@ -10,6 +10,7 @@ import {
   UserPlus, Tag,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface PartnerRow {
   id: number;
@@ -145,7 +146,7 @@ export default function PartnersPage() {
     if (!confirm(`${verb} partner "${name || id}"?`)) return;
     setActing(id);
     try {
-      const res = await fetch('/api/admin/partners', {
+      const res = await apiFetch('/api/admin/partners', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action }),
@@ -167,7 +168,7 @@ export default function PartnersPage() {
     setStatusDropdown(null);
     setActing(id);
     try {
-      const res = await fetch('/api/admin/partners', {
+      const res = await apiFetch('/api/admin/partners', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action: 'set_status', status }),
@@ -194,7 +195,7 @@ export default function PartnersPage() {
     }
     setAddSaving(true);
     try {
-      const res = await fetch('/api/admin/partners', {
+      const res = await apiFetch('/api/admin/partners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -256,7 +257,7 @@ export default function PartnersPage() {
         .map(c => c.trim())
         .filter(Boolean);
 
-      const res = await fetch('/api/admin/partners', {
+      const res = await apiFetch('/api/admin/partners', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
     if (authError) return authError;
 
-    const { service_id, duration_minutes, address } = await req.json();
+    const { service_id, duration_minutes, address, lat: bodyLat, lng: bodyLng } = await req.json();
 
     if (!service_id || !duration_minutes || !address) {
       return NextResponse.json(
@@ -61,19 +61,36 @@ export async function POST(req: NextRequest) {
     // Keep hours column as a decimal for legacy compatibility
     const hours = duration_minutes / 60;
 
-    // Parse lat/lng from address if it's in "lat,lng" format (customer app sends GPS coords)
+    // Prefer explicit lat/lng fields sent by the app (more reliable than
+    // parsing the address string).  Fall back to parsing "lat,lng" address
+    // for backwards compatibility with older app versions.
     let bookingLat: number | null = null;
     let bookingLng: number | null = null;
-    const coordParts = address.split(',');
-    if (coordParts.length === 2) {
-      const parsedLat = parseFloat(coordParts[0].trim());
-      const parsedLng = parseFloat(coordParts[1].trim());
-      // Validate coordinate ranges
-      if (!isNaN(parsedLat) && !isNaN(parsedLng) &&
+
+    if (typeof bodyLat === 'number' && typeof bodyLng === 'number') {
+      // Explicit numeric fields — validate ranges
+      if (
+        !isNaN(bodyLat) && !isNaN(bodyLng) &&
+        bodyLat >= -90 && bodyLat <= 90 &&
+        bodyLng >= -180 && bodyLng <= 180
+      ) {
+        bookingLat = bodyLat;
+        bookingLng = bodyLng;
+      }
+    } else {
+      // Legacy fallback: parse "lat,lng" from the address string
+      const coordParts = address.split(',');
+      if (coordParts.length === 2) {
+        const parsedLat = parseFloat(coordParts[0].trim());
+        const parsedLng = parseFloat(coordParts[1].trim());
+        if (
+          !isNaN(parsedLat) && !isNaN(parsedLng) &&
           parsedLat >= -90 && parsedLat <= 90 &&
-          parsedLng >= -180 && parsedLng <= 180) {
-        bookingLat = parsedLat;
-        bookingLng = parsedLng;
+          parsedLng >= -180 && parsedLng <= 180
+        ) {
+          bookingLat = parsedLat;
+          bookingLng = parsedLng;
+        }
       }
     }
 

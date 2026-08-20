@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { NextRequest } from 'next/server';
 import { verifyToken, JWTPayload } from './jwt';
 import { query } from './db';
 
@@ -35,4 +36,30 @@ export async function getUserPermissions(userId: number): Promise<string[]> {
 export async function hasPermission(userId: number, permSlug: string): Promise<boolean> {
   const perms = await getUserPermissions(userId);
   return perms.includes(permSlug);
+}
+
+/**
+ * Authenticates a partner from the `Authorization: Bearer <token>` header.
+ * Also validates tokenVersion against the DB so that logout / suspension
+ * immediately invalidates previously issued tokens.
+ *
+ * @returns The partner's numeric ID on success, or `null` if unauthorized.
+ */
+export async function verifyPartnerAuth(req: NextRequest): Promise<number | null> {
+  const authHeader = req.headers.get('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return null;
+
+  const payload: JWTPayload | null = verifyToken(token);
+  if (!payload || payload.roleSlug !== 'partner') return null;
+
+  // Guard against revoked tokens by comparing tokenVersion with the DB
+  const rows = await query<{ token_version: number }[]>(
+    `SELECT token_version FROM partners WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+    [payload.userId]
+  );
+  if (rows.length === 0) return null;
+  if ((payload.tokenVersion ?? 1) !== rows[0].token_version) return null;
+
+  return payload.userId;
 }

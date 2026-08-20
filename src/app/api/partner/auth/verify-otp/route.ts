@@ -3,6 +3,11 @@ import { query } from '@/lib/db';
 import { signToken } from '@/lib/jwt';
 import { hashOtp } from '@/lib/otpUtils';
 
+// ── Dev bypass OTP ────────────────────────────────────────────────────────────
+// In non-production environments, OTP "123456" always passes verification.
+// NEVER active in production (NODE_ENV === 'production').
+const DEV_BYPASS_OTP = '123456';
+
 // POST /api/partner/auth/verify-otp
 export async function POST(req: NextRequest) {
   try {
@@ -13,6 +18,30 @@ export async function POST(req: NextRequest) {
     }
     if (!otp || otp.length !== 6) {
       return NextResponse.json({ error: 'Invalid OTP' }, { status: 400 });
+    }
+
+    // ── Dev bypass: skip DB OTP check entirely ────────────────────────────────
+    if (process.env.NODE_ENV !== 'production' && otp === DEV_BYPASS_OTP) {
+      const partners = await query<{ id: number; name: string | null; status: string; token_version: number }[]>(
+        `SELECT id, name, status, token_version FROM partners WHERE phone = ? AND deleted_at IS NULL LIMIT 1`,
+        [phone]
+      );
+      let partnerId: number; let profileComplete: boolean;
+      let partnerStatus: string; let tokenVersion: number;
+      if (partners.length === 0) {
+        const result = await query<{ insertId: number }>(
+          `INSERT INTO partners (phone, status) VALUES (?, 'pending')`, [phone]
+        );
+        partnerId = result.insertId; profileComplete = false;
+        partnerStatus = 'pending'; tokenVersion = 1;
+      } else {
+        partnerId = partners[0].id; partnerStatus = partners[0].status;
+        profileComplete = !!(partners[0].name && partners[0].name.trim().length > 0);
+        tokenVersion = partners[0].token_version ?? 1;
+      }
+      const token = signToken({ userId: partnerId, email: phone, roleSlug: 'partner', roleName: 'Partner', tokenVersion });
+      console.log(`[DEV BYPASS] Partner login for ${phone}`);
+      return NextResponse.json({ success: true, token, partner_id: partnerId, profile_complete: profileComplete, partner_status: partnerStatus });
     }
 
     // Find the latest unused, non-expired OTP for this phone

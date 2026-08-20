@@ -13,6 +13,7 @@ import {
   CheckCheck, ArrowRight, Loader2, Check,
 } from 'lucide-react';
 import SearchModal from '@/components/admin/SearchModal';
+import { apiFetch } from '@/lib/apiFetch';
 
 // Each nav item declares which permission slug gates it
 interface NavItem {
@@ -365,7 +366,7 @@ function NotificationPanel({ onClose, onAllRead }: { onClose: () => void; onAllR
   };
 
   const markAllRead = async () => {
-    await fetch('/api/admin/notifications/read', { method: 'POST' });
+    await apiFetch('/api/admin/notifications/read', { method: 'POST' });
     // Persist all current IDs as dismissed
     const dismissed = getDismissedIds();
     items.forEach((n) => dismissed.add(n.id));
@@ -656,7 +657,7 @@ export default function AdminSidebar() {
 
   const handleLogout = async () => {
     setLoggingOut(true);
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await apiFetch('/api/auth/logout', { method: 'POST' });
     toast.success('Signed out');
     router.push('/login');
   };

@@ -194,7 +194,7 @@ async function migrate() {
       CREATE TABLE IF NOT EXISTS partner_otps (
         id INT AUTO_INCREMENT PRIMARY KEY,
         phone VARCHAR(15) NOT NULL,
-        otp VARCHAR(10) NOT NULL,
+        otp VARCHAR(64) NOT NULL,
         expires_at TIMESTAMP NOT NULL,
         used TINYINT(1) DEFAULT 0,
         attempts TINYINT DEFAULT 0,
@@ -257,7 +257,7 @@ async function migrate() {
       CREATE TABLE IF NOT EXISTS customer_otps (
         id INT AUTO_INCREMENT PRIMARY KEY,
         phone VARCHAR(15) NOT NULL,
-        otp VARCHAR(10) NOT NULL,
+        otp VARCHAR(64) NOT NULL,
         expires_at TIMESTAMP NOT NULL,
         used TINYINT(1) DEFAULT 0,
         attempts TINYINT DEFAULT 0,
@@ -307,10 +307,18 @@ async function migrate() {
         partner_id INT NULL,
         service_id INT NOT NULL,
         hours INT NOT NULL DEFAULT 1,
+        duration_minutes INT NOT NULL DEFAULT 60,
         price_per_hour DECIMAL(10,2) NOT NULL,
         total_price DECIMAL(10,2) NOT NULL,
         address TEXT NOT NULL,
+        lat DECIMAL(10,7) NULL,
+        lng DECIMAL(10,7) NULL,
+        otp_code VARCHAR(64) NULL,
+        otp_plaintext VARCHAR(6) NULL,
         status ENUM('finding','matched','in_progress','completed','cancelled') DEFAULT 'finding',
+        started_at TIMESTAMP NULL DEFAULT NULL,
+        payment_method VARCHAR(20) NULL DEFAULT NULL,
+        completed_at TIMESTAMP NULL DEFAULT NULL,
         deleted_at TIMESTAMP NULL DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -322,6 +330,72 @@ async function migrate() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     console.log('✅ Table: bookings');
+
+    // ─── BOOKINGS — add columns if they don't exist (idempotent) ─────────────
+    // These columns were added after the initial migration; ALTER TABLE is safe
+    // to run on an existing table because we check information_schema first.
+    const [bCols] = await connection.query(`
+      SELECT COLUMN_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookings'
+    `);
+    const existingCols = bCols.map(r => r.COLUMN_NAME);
+    if (!existingCols.includes('started_at')) {
+      await connection.query(`ALTER TABLE bookings ADD COLUMN started_at TIMESTAMP NULL DEFAULT NULL AFTER status`);
+      console.log('✅ bookings: added started_at');
+    }
+    if (!existingCols.includes('payment_method')) {
+      await connection.query(`ALTER TABLE bookings ADD COLUMN payment_method VARCHAR(20) NULL DEFAULT NULL AFTER started_at`);
+      console.log('✅ bookings: added payment_method');
+    }
+    if (!existingCols.includes('completed_at')) {
+      await connection.query(`ALTER TABLE bookings ADD COLUMN completed_at TIMESTAMP NULL DEFAULT NULL AFTER payment_method`);
+      console.log('✅ bookings: added completed_at');
+    }
+
+    // ─── PARTNERS — add rating / total_reviews columns if missing ─────────────
+    const [pCols] = await connection.query(`
+      SELECT COLUMN_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'partners'
+    `);
+    const existingPartnerCols = pCols.map(r => r.COLUMN_NAME);
+    if (!existingPartnerCols.includes('rating')) {
+      await connection.query(`ALTER TABLE partners ADD COLUMN rating DECIMAL(3,2) NULL DEFAULT NULL AFTER status`);
+      console.log('✅ partners: added rating');
+    }
+    if (!existingPartnerCols.includes('total_reviews')) {
+      await connection.query(`ALTER TABLE partners ADD COLUMN total_reviews INT NOT NULL DEFAULT 0 AFTER rating`);
+      console.log('✅ partners: added total_reviews');
+    }
+    if (!existingPartnerCols.includes('balance')) {
+      await connection.query(`ALTER TABLE partners ADD COLUMN balance DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER total_reviews`);
+      console.log('✅ partners: added balance');
+    }
+
+    // ─── CUSTOMERS — add wallet_balance column if missing ─────────────────────
+    const [custCols] = await connection.query(`
+      SELECT COLUMN_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers'
+    `);
+    const existingCustCols = custCols.map(r => r.COLUMN_NAME);
+    if (!existingCustCols.includes('wallet_balance')) {
+      await connection.query(`ALTER TABLE customers ADD COLUMN wallet_balance DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER language`);
+      console.log('✅ customers: added wallet_balance');
+    }
+
+    // ─── BOOKINGS — add razorpay columns if missing ───────────────────────────
+    const [bCols2] = await connection.query(`
+      SELECT COLUMN_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookings'
+    `);
+    const existingBCols2 = bCols2.map(r => r.COLUMN_NAME);
+    if (!existingBCols2.includes('razorpay_order_id')) {
+      await connection.query(`ALTER TABLE bookings ADD COLUMN razorpay_order_id VARCHAR(100) NULL DEFAULT NULL AFTER completed_at`);
+      console.log('✅ bookings: added razorpay_order_id');
+    }
+    if (!existingBCols2.includes('razorpay_payment_id')) {
+      await connection.query(`ALTER TABLE bookings ADD COLUMN razorpay_payment_id VARCHAR(100) NULL DEFAULT NULL AFTER razorpay_order_id`);
+      console.log('✅ bookings: added razorpay_payment_id');
+    }
 
     console.log('\n🎉 Migration completed successfully!');
   } catch (err) {

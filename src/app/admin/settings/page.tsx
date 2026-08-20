@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Settings, Globe, Shield, CreditCard, Mail, Upload, X, Save, BarChart3, Database, Download, RefreshCw, FileText, Table2, Palette, Bell, Smartphone, MessageSquare, Eye, EyeOff } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
+import { apiFetch } from '@/lib/apiFetch';
 
 type SettingsData = Record<string, Record<string, string>>;
 
@@ -126,7 +127,7 @@ function SettingsContent() {
   const fetchDbStats = useCallback(async () => {
     setDbLoading(true);
     try {
-      const res = await fetch('/api/admin/settings/db-export', { method: 'POST' });
+      const res = await apiFetch('/api/admin/settings/db-export', { method: 'POST' });
       const data = await res.json();
       if (res.ok) setDbTables(data.tables || []);
       else toast.error(data.error || 'Failed to load table stats');
@@ -203,9 +204,9 @@ function SettingsContent() {
         if (logoFile) fd.append('site_logo_file', logoFile);
         if (faviconFile) fd.append('site_favicon_file', faviconFile);
         Object.entries(allSettings).forEach(([k, v]) => fd.append(k, v));
-        res = await fetch('/api/admin/settings', { method: 'POST', body: fd });
+        res = await apiFetch('/api/admin/settings', { method: 'POST', body: fd });
       } else {
-        res = await fetch('/api/admin/settings', {
+        res = await apiFetch('/api/admin/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(allSettings),
