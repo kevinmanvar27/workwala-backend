@@ -61,7 +61,7 @@ async function buildSQLDump(tables: string[]): Promise<string> {
   const now = new Date().toISOString();
 
   lines.push('-- ─────────────────────────────────────────────────────────────');
-  lines.push(`-- Database Export — workwala`);
+  lines.push(`-- Database Export — linko`);
   lines.push(`-- Generated: ${now}`);
   lines.push(`-- Tables: ${tables.join(', ')}`);
   lines.push('-- ─────────────────────────────────────────────────────────────');
@@ -122,7 +122,7 @@ async function buildStructureDump(tables: string[]): Promise<string> {
   const now = new Date().toISOString();
 
   lines.push('-- ─────────────────────────────────────────────────────────────');
-  lines.push(`-- Database Structure Export — workwala`);
+  lines.push(`-- Database Structure Export — linko`);
   lines.push(`-- Generated: ${now}`);
   lines.push(`-- Tables: ${tables.join(', ')}`);
   lines.push('-- Structure only — no data rows included');
@@ -214,7 +214,7 @@ export async function GET(req: NextRequest) {
       const sql = await buildStructureDump(tables);
       const filename = tableParam
         ? `${tableParam}_structure_${Date.now()}.sql`
-        : `workwala_structure_${Date.now()}.sql`;
+        : `linko_structure_${Date.now()}.sql`;
 
       await logActivity({
         userId: actor!.userId,
@@ -241,7 +241,7 @@ export async function GET(req: NextRequest) {
     const sql = await buildSQLDump(tables);
     const filename = tableParam
       ? `${tableParam}_${Date.now()}.sql`
-      : `workwala_${Date.now()}.sql`;
+      : `linko_${Date.now()}.sql`;
 
     await logActivity({
       userId: actor!.userId,

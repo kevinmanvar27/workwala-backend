@@ -47,7 +47,7 @@ export default function PartnerSection({ settings }: { settings: Record<string, 
           </h2>
 
           <p className="ww-partner-subtext ww-reveal ww-delay-200">
-            Join 2,400+ professionals already earning with WorkWala.
+            Join 2,400+ professionals already earning with Linko.
             No office. No boss. Just your craft and a phone.
           </p>
 
@@ -111,7 +111,7 @@ export default function PartnerSection({ settings }: { settings: Record<string, 
               textTransform: 'uppercase', color: 'rgba(255,255,255,0.60)',
             }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ww-lime)', display: 'inline-block' }} />
-              Why partners love WorkWala
+              Why partners love Linko
             </div>
           </div>
 

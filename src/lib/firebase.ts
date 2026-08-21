@@ -46,7 +46,7 @@ export async function getFirebaseApp(): Promise<admin.app.App | null> {
   const cfg = await getFirebaseConfig();
   if (!cfg) return null;
 
-  const appName = 'workwala';
+  const appName = 'linko';
 
   // Re-use existing app if already initialized
   try {

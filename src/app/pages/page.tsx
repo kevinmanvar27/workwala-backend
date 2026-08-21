@@ -28,7 +28,7 @@ async function getSiteSettings() {
 
 export default async function PagesListPage() {
   const [pages, settings] = await Promise.all([getPublishedPages(), getSiteSettings()]);
-  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'WorkWala';
+  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'Linko';
   const siteLogo = settings.site_logo?.trim() || '';
 
   return (

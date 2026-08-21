@@ -208,7 +208,7 @@ export default function CustomerApp() {
               <div className="ww-phone-screen" style={{ padding: '48px 14px 16px' }}>
                 <div className="ww-phone-status-bar">
                   <span>9:41</span>
-                  <span style={{ color: 'var(--ww-green)' }}>WorkWala</span>
+                  <span style={{ color: 'var(--ww-green)' }}>Linko</span>
                   <span>●●●</span>
                 </div>
 

@@ -62,7 +62,7 @@ export default function LoginPage() {
     manual_login_enabled: '1',
     google_login_enabled: '0',
     apple_login_enabled:  '0',
-    site_name: 'WorkWala',
+    site_name: 'Linko',
     site_logo: '',
   });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -77,7 +77,7 @@ export default function LoginPage() {
           manual_login_enabled: s.manual_login_enabled ?? '1',
           google_login_enabled: s.google_login_enabled ?? '0',
           apple_login_enabled:  s.apple_login_enabled  ?? '0',
-          site_name: s.site_name ?? 'WorkWala',
+          site_name: s.site_name ?? 'Linko',
           site_logo: s.site_logo ?? '',
         });
         setSettingsLoaded(true);
@@ -713,7 +713,7 @@ export default function LoginPage() {
                             type="email" required autoComplete="email"
                             value={form.email}
                             onChange={e => setForm({ ...form, email: e.target.value })}
-                            placeholder="admin@workwala.in"
+                            placeholder="admin@linko.in"
                             className="al-input"
                           />
                         </div>

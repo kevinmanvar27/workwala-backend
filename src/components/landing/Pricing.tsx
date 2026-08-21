@@ -41,7 +41,7 @@ export default function Pricing({ settings }: { settings: Record<string, string>
               {settings.pricing_title || 'Know what you\'re\npaying for.'}
             </h2>
             <p className="ww-subtext mb-8">
-              {settings.pricing_desc || 'Choose the service and duration. WorkWala calculates the total price before you confirm your booking. No surprises.'}
+              {settings.pricing_desc || 'Choose the service and duration. Linko calculates the total price before you confirm your booking. No surprises.'}
             </p>
 
             <div className="space-y-3 mb-8">

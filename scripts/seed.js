@@ -7,7 +7,7 @@ const DB_CONFIG = {
   port: parseInt(process.env.DB_PORT || '3306'),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'workwala',
+  database: process.env.DB_NAME || 'linko',
 };
 
 async function seed() {
@@ -167,7 +167,7 @@ async function seed() {
     // ─── SETTINGS ────────────────────────────────────────────────────────────
     const settings = [
       // General
-      { key_name: 'site_name', value: 'WorkWala', group_name: 'general' },
+      { key_name: 'site_name', value: 'Linko', group_name: 'general' },
       { key_name: 'site_tagline', value: 'Build something amazing', group_name: 'general' },
       { key_name: 'site_logo', value: '', group_name: 'general' },
       { key_name: 'contact_support_email', value: 'support@example.com', group_name: 'general' },
@@ -199,7 +199,7 @@ async function seed() {
       { key_name: 'mail_username', value: '', group_name: 'mail' },
       { key_name: 'mail_password', value: '', group_name: 'mail' },
       { key_name: 'mail_from_address', value: '', group_name: 'mail' },
-      { key_name: 'mail_from_name', value: 'WorkWala', group_name: 'mail' },
+      { key_name: 'mail_from_name', value: 'Linko', group_name: 'mail' },
       { key_name: 'mail_encryption', value: 'tls', group_name: 'mail' },
       // Notifications
       { key_name: 'push_notifications_enabled', value: '0', group_name: 'notifications' },

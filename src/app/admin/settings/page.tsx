@@ -160,7 +160,7 @@ function SettingsContent() {
       if (!res.ok) { toast.error('Export failed'); return; }
       const blob = await res.blob();
       const suffix = exportFormat === 'structure' ? '_structure' : '';
-      triggerDownload(blob, `workwala${suffix}_${Date.now()}.sql`);
+      triggerDownload(blob, `linko${suffix}_${Date.now()}.sql`);
       toast.success(exportFormat === 'structure' ? 'Database structure exported' : 'Full database exported');
     } catch { toast.error('Export failed'); }
     finally { setExportingAll(false); }
@@ -295,7 +295,7 @@ function SettingsContent() {
                 <p className="text-xs text-[#757575] mt-0.5">Basic site information and contact details</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="Site Name"       group="general" field="site_name"             placeholder="WorkWala"                     get={get} set={set} />
+                <Field label="Site Name"       group="general" field="site_name"             placeholder="Linko"                     get={get} set={set} />
                 <Field label="Tagline"         group="general" field="site_tagline"          placeholder="Build something amazing"      get={get} set={set} />
                 <Field label="Site URL"        group="general" field="site_url"              placeholder="https://example.com"          get={get} set={set} hint="Canonical base URL — used in meta tags and sitemaps" />
                 {/* Site Language — drives <html lang> and OG locale for SEO/AEO */}
@@ -325,7 +325,7 @@ function SettingsContent() {
                   </select>
                   <p className="text-xs text-[#757575] mt-1.5">Sets <code className="font-mono bg-[#F0F0F0] px-1 rounded">&lt;html lang&gt;</code> and Open Graph locale — important for SEO</p>
                 </div>
-                <Field label="Copyright Text"  group="general" field="copyright_text"        placeholder="© 2026 WorkWala. All rights reserved." get={get} set={set} />
+                <Field label="Copyright Text"  group="general" field="copyright_text"        placeholder="© 2026 Linko. All rights reserved." get={get} set={set} />
                 <Field label="Support Email"   group="general" field="contact_support_email" type="email" placeholder="support@example.com"  get={get} set={set} />
                 <Field label="Business Email"  group="general" field="business_email"        type="email" placeholder="business@example.com" get={get} set={set} />
                 <Field label="Phone"           group="general" field="contact_phone"         placeholder="+1 234 567 890"               get={get} set={set} />
@@ -437,14 +437,14 @@ function SettingsContent() {
                 <Field
                   label="Meta Title"
                   group="general" field="meta_title"
-                  placeholder="WorkWala — Build something amazing"
+                  placeholder="Linko — Build something amazing"
                   hint="Shown in browser tab and search results (50–60 chars recommended)"
                   get={get} set={set}
                 />
                 <Field
                   label="Meta Author"
                   group="general" field="meta_author"
-                  placeholder="WorkWala Team"
+                  placeholder="Linko Team"
                   hint="Author name injected into the author meta tag"
                   get={get} set={set}
                 />
@@ -493,7 +493,7 @@ function SettingsContent() {
                 <Field
                   label="OG Title"
                   group="general" field="og_title"
-                  placeholder="WorkWala — Build something amazing"
+                  placeholder="Linko — Build something amazing"
                   hint="Defaults to Meta Title if left empty"
                   get={get} set={set}
                 />
@@ -777,7 +777,7 @@ function SettingsContent() {
               <Field label="Username" group="mail" field="mail_username" type="email" placeholder="you@gmail.com" get={get} set={set} />
               <Field label="Password" group="mail" field="mail_password" type="password" placeholder="App password" get={get} set={set} />
               <Field label="From Address" group="mail" field="mail_from_address" type="email" placeholder="noreply@example.com" get={get} set={set} />
-              <Field label="From Name" group="mail" field="mail_from_name" placeholder="WorkWala" get={get} set={set} />
+              <Field label="From Name" group="mail" field="mail_from_name" placeholder="Linko" get={get} set={set} />
               <div>
                 <label className="block text-xs font-semibold text-[#757575] mb-1.5 uppercase tracking-wide">Encryption</label>
                 <select
@@ -998,7 +998,7 @@ function SettingsContent() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </div>
-                  <span className="text-white text-xs font-bold">WorkWala</span>
+                  <span className="text-white text-xs font-bold">Linko</span>
                   <div className="flex-1" />
                   {/* Active nav item */}
                   <span

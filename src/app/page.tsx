@@ -107,7 +107,7 @@ export default async function HomePage() {
     getPublishedPages(),
   ]);
 
-  const siteName  = settings.site_name    || process.env.NEXT_PUBLIC_SITE_NAME || 'WorkWala';
+  const siteName  = settings.site_name    || process.env.NEXT_PUBLIC_SITE_NAME || 'Linko';
   const tagline   = settings.site_tagline || 'Trusted help, right when you need it.';
   const siteLogo  = settings.site_logo?.trim() || '';
   const copyright = settings.copyright_text || `© ${new Date().getFullYear()} ${siteName}. All rights reserved.`;

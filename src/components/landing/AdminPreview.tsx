@@ -35,7 +35,7 @@ export default function AdminPreview() {
             <span className="ww-green-text">behind every booking.</span>
           </h2>
           <p className="ww-subtext max-w-xl mx-auto">
-            WorkWala isn&apos;t just an app — it&apos;s a complete service marketplace platform with a powerful admin backend.
+            Linko isn&apos;t just an app — it&apos;s a complete service marketplace platform with a powerful admin backend.
           </p>
         </div>
 
@@ -53,7 +53,7 @@ export default function AdminPreview() {
                   className="flex-1 mx-4 rounded-md px-3 py-1 text-xs"
                   style={{ background: '#F4F4F0', color: '#9CA3AF', maxWidth: 200 }}
                 >
-                  admin.workwala.in
+                  admin.linko.in
                 </div>
               </div>
 

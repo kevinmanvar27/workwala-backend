@@ -1,5 +1,9 @@
 const mysql = require('mysql2/promise');
-require('dotenv').config({ path: '.env.local' });
+const path = require('path');
+
+// Load the correct env file based on NODE_ENV
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
+require('dotenv').config({ path: path.resolve(process.cwd(), envFile) });
 
 const DB_CONFIG = {
   host: process.env.DB_HOST || 'localhost',
@@ -8,7 +12,7 @@ const DB_CONFIG = {
   password: process.env.DB_PASSWORD || '',
 };
 
-const DB_NAME = process.env.DB_NAME || 'workwala';
+const DB_NAME = process.env.DB_NAME || 'linko';
 
 async function migrate() {
   let connection;

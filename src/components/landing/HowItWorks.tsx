@@ -21,7 +21,7 @@ const STEPS = [
     number: '03',
     icon: <Users size={26} />,
     title: 'Get matched',
-    desc: 'WorkWala finds the nearest available verified Partner instantly.',
+    desc: 'Linko finds the nearest available verified Partner instantly.',
     color: '#F97316',
   },
   {

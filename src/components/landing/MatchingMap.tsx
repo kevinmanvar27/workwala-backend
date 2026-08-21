@@ -19,7 +19,7 @@ export default function MatchingMap() {
               <span className="ww-green-text">on the way.</span>
             </h2>
             <p className="ww-subtext mb-8">
-              WorkWala instantly matches you with the nearest available verified Partner.
+              Linko instantly matches you with the nearest available verified Partner.
               No waiting, no calls — just seamless real-time connection.
             </p>
 

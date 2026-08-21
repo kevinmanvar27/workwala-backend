@@ -24,7 +24,7 @@ const TESTIMONIALS = [
     city: 'Hyderabad',
     initials: 'KR',
     color: '#F97316',
-    quote: 'Used WorkWala for cooking help for a family event. The partner was professional, the OTP system was smooth, and the food was amazing!',
+    quote: 'Used Linko for cooking help for a family event. The partner was professional, the OTP system was smooth, and the food was amazing!',
     rating: 5,
   },
 ];
@@ -43,7 +43,7 @@ export default function Testimonials() {
             Made for everyday life.
           </h2>
           <p className="ww-subtext max-w-xl mx-auto">
-            Real experiences from people who use WorkWala every day.
+            Real experiences from people who use Linko every day.
           </p>
         </div>
 

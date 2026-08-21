@@ -89,7 +89,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await getPublicSettings();
 
   const favicon     = settings.site_favicon?.trim() || '';
-  const siteName    = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'WorkWala';
+  const siteName    = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'Linko';
   const tagline     = settings.site_tagline || '';
   const siteUrl     = (settings.site_url || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
   // Derive OG locale from site_language (e.g. "en" → "en_US", "fr" → "fr_FR")
@@ -162,7 +162,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nonce = headersList.get('x-nonce') ?? '';
 
   const gaScript  = (settings.ga_script ?? '').trim();
-  const siteName  = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'WorkWala';
+  const siteName  = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'Linko';
   const tagline   = settings.site_tagline || '';
   const siteUrl   = (settings.site_url || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
   const ogImage   = settings.meta_og_image || '';

@@ -89,7 +89,7 @@ function BrandBlock({ site, iconSize = 'md' }: { site: SiteInfo; iconSize?: 'sm'
         </svg>
       </div>
       <span className={`text-white font-bold tracking-tight truncate ${iconSize === 'sm' ? 'text-sm' : 'text-[13px]'}`}>
-        {site.site_name || 'WorkWala'}
+        {site.site_name || 'Linko'}
       </span>
     </>
   );

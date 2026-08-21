@@ -1,12 +1,12 @@
 {
-  "name": "next-workwala",
+  "name": "next-linko",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "dev:setup": "node scripts/setup.js && next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/migrate.js && next start",
     "lint": "eslint",
     "migrate": "node scripts/migrate.js",
     "seed": "node scripts/seed.js",

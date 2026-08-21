@@ -1,5 +1,5 @@
 /**
- * dateUtils.ts — WorkWala shared date/time helpers
+ * dateUtils.ts — Linko shared date/time helpers
  * All display formatting uses IST (Asia/Kolkata, UTC+5:30).
  */
 

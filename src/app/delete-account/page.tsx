@@ -11,7 +11,7 @@ export default function DeleteAccountPage() {
   const [submitted, setSubmitted] = useState(false);
 
   // Site branding — fetched from public settings API
-  const [siteName, setSiteName] = useState(process.env.NEXT_PUBLIC_SITE_NAME || 'WorkWala');
+  const [siteName, setSiteName] = useState(process.env.NEXT_PUBLIC_SITE_NAME || 'Linko');
   const [siteLogo, setSiteLogo] = useState('');
 
   useEffect(() => {

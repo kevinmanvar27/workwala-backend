@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!page) return { title: 'Page Not Found' };
 
-  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'WorkWala';
+  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'Linko';
   const siteUrl  = (settings.site_url || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
   const pageUrl  = `${siteUrl}/pages/${page.slug}`;
   const ogImage  = settings.meta_og_image || '';
@@ -76,7 +76,7 @@ export default async function PublicPageDetail({ params }: Props) {
 
   if (!page) notFound();
 
-  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'WorkWala';
+  const siteName = settings.site_name || process.env.NEXT_PUBLIC_SITE_NAME || 'Linko';
   const siteLogo = settings.site_logo?.trim() || '';
   const siteUrl  = (settings.site_url || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
   const pageUrl  = `${siteUrl}/pages/${page.slug}`;
