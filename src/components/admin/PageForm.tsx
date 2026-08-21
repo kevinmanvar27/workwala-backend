@@ -22,7 +22,7 @@ export default function PageForm({ pageId }: PageFormProps) {
 
   useEffect(() => {
     if (isEdit) {
-      fetch(`/api/admin/pages/${pageId}`).then((r) => r.json()).then((d) => {
+      apiFetch(`/api/admin/pages/${pageId}`).then((r) => r.json()).then((d) => {
         if (d.page) setForm({
           title: d.page.title, slug: d.page.slug, content: d.page.content || '',
           meta_title: d.page.meta_title || '', meta_description: d.page.meta_description || '',

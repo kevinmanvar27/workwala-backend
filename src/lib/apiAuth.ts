@@ -11,8 +11,8 @@ const CSRF_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 
 function validateCsrf(req: NextRequest): boolean {
   if (!CSRF_METHODS.has(req.method)) return true;
-  const headerToken = req.headers.get('x-csrf-token');
-  const cookieToken = req.cookies.get('csrf_token')?.value;
+  const headerToken = req.headers.get('x-csrf-token')?.trim();
+  const cookieToken = req.cookies.get('csrf_token')?.value?.trim();
   if (!headerToken || !cookieToken) return false;
   // Use timing-safe comparison to prevent timing oracle attacks
   try {
