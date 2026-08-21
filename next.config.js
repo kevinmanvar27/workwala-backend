@@ -1,5 +1,3 @@
-import type { NextConfig } from "next";
-
 // ── Static security headers applied to every response ─────────────────────────
 // NOTE: Content-Security-Policy is intentionally NOT set here.
 // It is injected per-request by middleware.ts with a unique nonce, which
@@ -22,7 +20,8 @@ const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
 ];
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   async headers() {
     return [
       {
@@ -33,4 +32,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
