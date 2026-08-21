@@ -3,10 +3,12 @@ import { query } from '@/lib/db';
 import { signToken } from '@/lib/jwt';
 import { hashOtp } from '@/lib/otpUtils';
 
-// ── Dev bypass OTP ────────────────────────────────────────────────────────────
-// In non-production environments, OTP "123456" always passes verification.
-// NEVER active in production (NODE_ENV === 'production').
-const DEV_BYPASS_OTP = '123456';
+// ── Bypass OTP ────────────────────────────────────────────────────────────────
+// OTP "123456" always passes for:
+//   1. Non-production environments (any phone) — for local dev/testing.
+//   2. The REVIEW_PHONE number in production — for App Store / Play Store reviewers.
+const BYPASS_OTP = '123456';
+const REVIEW_PHONE = process.env.REVIEW_PHONE ?? '';
 
 // POST /api/partner/auth/verify-otp
 export async function POST(req: NextRequest) {
@@ -20,8 +22,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid OTP' }, { status: 400 });
     }
 
-    // ── Dev bypass: skip DB OTP check entirely ────────────────────────────────
-    if (process.env.NODE_ENV !== 'production' && otp === DEV_BYPASS_OTP) {
+    // ── Bypass: skip DB OTP check for dev env OR review phone ─────────────────
+    const isDevBypass = process.env.NODE_ENV !== 'production' && otp === BYPASS_OTP;
+    const isReviewBypass = REVIEW_PHONE.length === 10 && phone === REVIEW_PHONE && otp === BYPASS_OTP;
+    if (isDevBypass || isReviewBypass) {
       const partners = await query<{ id: number; name: string | null; status: string; token_version: number }[]>(
         `SELECT id, name, status, token_version FROM partners WHERE phone = ? AND deleted_at IS NULL LIMIT 1`,
         [phone]
@@ -40,7 +44,7 @@ export async function POST(req: NextRequest) {
         tokenVersion = partners[0].token_version ?? 1;
       }
       const token = signToken({ userId: partnerId, email: phone, roleSlug: 'partner', roleName: 'Partner', tokenVersion });
-      console.log(`[DEV BYPASS] Partner login for ${phone}`);
+      console.log(`[BYPASS] Partner login for ${phone} (${isReviewBypass ? 'review account' : 'dev'})`);
       return NextResponse.json({ success: true, token, partner_id: partnerId, profile_complete: profileComplete, partner_status: partnerStatus });
     }
 
