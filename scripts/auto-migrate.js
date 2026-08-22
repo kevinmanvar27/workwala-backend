@@ -11,7 +11,7 @@
 
 const mysql = require('mysql2/promise');
 const path = require('path');
-const fs = require('fs');
+const { spawn } = require('child_process');
 
 // Load the correct env file based on NODE_ENV
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
@@ -49,102 +49,119 @@ const MIGRATIONS = [
  * Create migrations tracking table if it doesn't exist
  */
 async function ensureMigrationsTable(connection) {
-  await connection.query(`
-    CREATE TABLE IF NOT EXISTS migrations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(255) NOT NULL UNIQUE,
-      description TEXT,
-      executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      execution_time_ms INT,
-      status ENUM('success', 'failed') DEFAULT 'success',
-      error_message TEXT NULL,
-      INDEX idx_name (name),
-      INDEX idx_executed_at (executed_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-  console.log('✅ Migrations tracking table ready');
+  try {
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS migrations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        description TEXT,
+        executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        execution_time_ms INT,
+        status ENUM('success', 'failed') DEFAULT 'success',
+        error_message TEXT NULL,
+        INDEX idx_name (name),
+        INDEX idx_executed_at (executed_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('✅ Migrations tracking table ready');
+  } catch (error) {
+    console.error('❌ Failed to create migrations table:', error.message);
+    throw error;
+  }
 }
 
 /**
  * Check if a migration has already been executed
  */
 async function isMigrationExecuted(connection, migrationName) {
-  const [rows] = await connection.query(
-    'SELECT id FROM migrations WHERE name = ? AND status = "success"',
-    [migrationName]
-  );
-  return rows.length > 0;
+  try {
+    const [rows] = await connection.query(
+      'SELECT id FROM migrations WHERE name = ? AND status = "success"',
+      [migrationName]
+    );
+    return rows.length > 0;
+  } catch (error) {
+    console.error(`❌ Error checking migration status: ${error.message}`);
+    return false;
+  }
 }
 
 /**
  * Record a migration execution
  */
 async function recordMigration(connection, name, description, executionTime, status = 'success', error = null) {
-  await connection.query(
-    `INSERT INTO migrations (name, description, execution_time_ms, status, error_message) 
-     VALUES (?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE 
-       executed_at = CURRENT_TIMESTAMP,
-       execution_time_ms = VALUES(execution_time_ms),
-       status = VALUES(status),
-       error_message = VALUES(error_message)`,
-    [name, description, executionTime, status, error]
-  );
+  try {
+    await connection.query(
+      `INSERT INTO migrations (name, description, execution_time_ms, status, error_message) 
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+         executed_at = CURRENT_TIMESTAMP,
+         execution_time_ms = VALUES(execution_time_ms),
+         status = VALUES(status),
+         error_message = VALUES(error_message)`,
+      [name, description, executionTime, status, error]
+    );
+  } catch (err) {
+    console.error(`❌ Failed to record migration: ${err.message}`);
+  }
 }
 
 /**
- * Execute a single migration file
+ * Execute a single migration file as a separate process
  */
 async function executeMigration(connection, migration) {
   const migrationPath = path.join(__dirname, migration.file);
   
-  if (!fs.existsSync(migrationPath)) {
-    console.warn(`⚠️  Migration file not found: ${migration.file}`);
-    return false;
-  }
-
   console.log(`\n📦 Running migration: ${migration.name}`);
   console.log(`   Description: ${migration.description}`);
   
   const startTime = Date.now();
   
-  try {
-    // Temporarily override process.exit to prevent migration scripts from exiting
-    const originalExit = process.exit;
-    let exitCalled = false;
-    let exitCode = 0;
-    
-    process.exit = (code = 0) => {
-      exitCalled = true;
-      exitCode = code;
-    };
+  return new Promise((resolve) => {
+    const child = spawn('node', [migrationPath], {
+      env: { ...process.env, NODE_ENV: process.env.NODE_ENV || 'development' },
+      cwd: process.cwd()
+    });
 
-    // Execute the migration by requiring it
-    delete require.cache[require.resolve(migrationPath)];
-    await require(migrationPath);
-    
-    // Restore original process.exit
-    process.exit = originalExit;
-    
-    // Check if migration called process.exit with error
-    if (exitCalled && exitCode !== 0) {
-      throw new Error(`Migration exited with code ${exitCode}`);
-    }
-    
-    const executionTime = Date.now() - startTime;
-    await recordMigration(connection, migration.name, migration.description, executionTime, 'success');
-    
-    console.log(`✅ Migration completed in ${executionTime}ms: ${migration.name}`);
-    return true;
-    
-  } catch (error) {
-    const executionTime = Date.now() - startTime;
-    await recordMigration(connection, migration.name, migration.description, executionTime, 'failed', error.message);
-    
-    console.error(`❌ Migration failed: ${migration.name}`);
-    console.error(`   Error: ${error.message}`);
-    return false;
-  }
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      const output = data.toString();
+      stdout += output;
+      process.stdout.write(output);
+    });
+
+    child.stderr.on('data', (data) => {
+      const output = data.toString();
+      stderr += output;
+      process.stderr.write(output);
+    });
+
+    child.on('close', async (code) => {
+      const executionTime = Date.now() - startTime;
+      
+      if (code === 0) {
+        await recordMigration(connection, migration.name, migration.description, executionTime, 'success');
+        console.log(`✅ Migration completed in ${executionTime}ms: ${migration.name}`);
+        resolve(true);
+      } else {
+        const errorMsg = stderr || `Process exited with code ${code}`;
+        await recordMigration(connection, migration.name, migration.description, executionTime, 'failed', errorMsg);
+        console.error(`❌ Migration failed: ${migration.name}`);
+        console.error(`   Error: ${errorMsg}`);
+        resolve(false);
+      }
+    });
+
+    child.on('error', async (error) => {
+      const executionTime = Date.now() - startTime;
+      await recordMigration(connection, migration.name, migration.description, executionTime, 'failed', error.message);
+      console.error(`❌ Migration error: ${migration.name}`);
+      console.error(`   Error: ${error.message}`);
+      resolve(false);
+    });
+  });
 }
 
 /**
@@ -194,6 +211,7 @@ async function autoMigrate() {
       } else {
         failedCount++;
         // Continue with other migrations even if one fails
+        console.warn(`⚠️  Continuing with remaining migrations...`);
       }
     }
     
@@ -209,19 +227,23 @@ async function autoMigrate() {
     }
     console.log('═'.repeat(60));
     
-    if (failedCount > 0) {
-      console.warn('\n⚠️  Some migrations failed. Please check the logs above.');
-      process.exit(1);
-    } else if (pendingCount === 0) {
+    if (pendingCount === 0) {
       console.log('\n✨ All migrations are up to date!');
-    } else {
-      console.log('\n🎉 All pending migrations completed successfully!');
+    } else if (successCount > 0) {
+      console.log('\n🎉 Migrations completed!');
+    }
+    
+    // Don't exit with error code - let the server start anyway
+    if (failedCount > 0) {
+      console.warn('\n⚠️  Some migrations failed, but server will start anyway.');
+      console.warn('   Please check the logs and fix migrations manually if needed.');
     }
     
   } catch (error) {
-    console.error('\n❌ Auto-migration system failed:');
-    console.error(error);
-    process.exit(1);
+    console.error('\n❌ Auto-migration system error:');
+    console.error(error.message);
+    console.warn('\n⚠️  Migration failed, but server will start anyway.');
+    console.warn('   Please run migrations manually: npm run migrate:auto');
   } finally {
     if (connection) {
       await connection.end();
@@ -231,4 +253,11 @@ async function autoMigrate() {
 }
 
 // Run auto-migration
-autoMigrate();
+autoMigrate().then(() => {
+  console.log('\n✅ Auto-migration process completed');
+  process.exit(0);
+}).catch((error) => {
+  console.error('\n❌ Fatal error in auto-migration:', error.message);
+  // Exit with 0 anyway to allow server to start
+  process.exit(0);
+});

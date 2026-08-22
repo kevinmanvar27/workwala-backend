@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "dev:setup": "node scripts/setup.js && next dev",
-    "build": "next build --webpack",
-    "start": "node scripts/auto-migrate.js && next start",
+    "build": "next build",
+    "start": "node server.js",
     "lint": "eslint",
     "migrate": "node scripts/migrate.js",
     "migrate:auto": "node scripts/auto-migrate.js",
