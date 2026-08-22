@@ -42,6 +42,11 @@ const MIGRATIONS = [
     name: 'notifications_module',
     file: 'migrate_notifications.js',
     description: 'Push notification management tables'
+  },
+  {
+    name: 'link_services_categories',
+    file: 'migrate_link_services_categories.js',
+    description: 'Link services to categories for icon display'
   }
 ];
 

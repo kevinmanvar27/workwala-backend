@@ -316,6 +316,7 @@ async function migrate() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         slug VARCHAR(255) NOT NULL UNIQUE,
+        category_id INT NULL,
         description TEXT,
         price_per_hour DECIMAL(10,2) NOT NULL DEFAULT 100.00,
         icon_url VARCHAR(500),
@@ -325,7 +326,8 @@ async function migrate() {
         sort_order INT DEFAULT 0,
         deleted_at TIMESTAMP NULL DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     console.log('✅ Table: services');
