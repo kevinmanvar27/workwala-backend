@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   Plus, Pencil, Trash2, ToggleLeft, ToggleRight,
-  Tag, X, Check, Loader2, GripVertical,
+  Tag, X, Check, Loader2, GripVertical, Upload, Image as ImageIcon,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
 import { apiFetch } from '@/lib/apiFetch';
@@ -17,6 +17,8 @@ interface Category {
   slug: string;
   description: string | null;
   price_per_hour: number;
+  icon_path: string | null;
+  icon_color: string | null;
   bg_color: string;
   border_color: string;
   is_active: number;
@@ -43,6 +45,7 @@ const EMPTY_FORM = {
   border_color: '#6B9BFA',
   is_active: true,
   sort_order: '0',
+  icon_color: '',
 };
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -57,6 +60,17 @@ export default function CategoriesPage() {
   const [modal, setModal]   = useState<'create' | 'edit' | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm]     = useState({ ...EMPTY_FORM });
+  
+  // Icon upload state
+  const [iconFile, setIconFile] = useState<File | null>(null);
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  const [currentIconPath, setCurrentIconPath] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Icon library state
+  const [availableIcons, setAvailableIcons] = useState<Array<{ name: string; slug: string; path: string }>>([]);
+  const [selectedLibraryIcon, setSelectedLibraryIcon] = useState<string | null>(null);
+  const [showIconLibrary, setShowIconLibrary] = useState(false);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -76,11 +90,33 @@ export default function CategoriesPage() {
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
 
+  // ── Fetch available icons ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    const fetchIcons = async () => {
+      try {
+        const res = await fetch('/api/admin/categories/icons');
+        const data = await res.json();
+        if (res.ok && data.icons) {
+          setAvailableIcons(data.icons);
+        }
+      } catch (err) {
+        console.error('Failed to fetch icons:', err);
+      }
+    };
+    fetchIcons();
+  }, []);
+
   // ── Open modals ────────────────────────────────────────────────────────────
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM, sort_order: String(categories.length) });
     setEditId(null);
+    setIconFile(null);
+    setIconPreview(null);
+    setCurrentIconPath(null);
+    setSelectedLibraryIcon(null);
+    setShowIconLibrary(false);
     setModal('create');
   };
 
@@ -93,12 +129,75 @@ export default function CategoriesPage() {
       border_color:  cat.border_color,
       is_active:     cat.is_active === 1,
       sort_order:    String(cat.sort_order),
+      icon_color:    cat.icon_color || '',
     });
     setEditId(cat.id);
+    setIconFile(null);
+    setIconPreview(null);
+    setCurrentIconPath(cat.icon_path);
+    setSelectedLibraryIcon(null);
+    setShowIconLibrary(false);
     setModal('edit');
   };
 
-  const closeModal = () => { setModal(null); setEditId(null); };
+  const closeModal = () => { 
+    setModal(null); 
+    setEditId(null); 
+    setIconFile(null);
+    setIconPreview(null);
+    setCurrentIconPath(null);
+    setSelectedLibraryIcon(null);
+    setShowIconLibrary(false);
+  };
+
+  // ── Handle icon file selection ─────────────────────────────────────────────
+
+  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please upload a valid image file (JPEG, PNG, WebP, or SVG)');
+      return;
+    }
+
+    // Validate file size (10 MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Icon file must be less than 10 MB');
+      return;
+    }
+
+    setIconFile(file);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setIconPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeIcon = () => {
+    setIconFile(null);
+    setIconPreview(null);
+    setSelectedLibraryIcon(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // ── Handle library icon selection ──────────────────────────────────────────
+
+  const selectLibraryIcon = (iconPath: string) => {
+    setSelectedLibraryIcon(iconPath);
+    setIconFile(null);
+    setIconPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // ── Save (create / update) ─────────────────────────────────────────────────
 
@@ -109,31 +208,64 @@ export default function CategoriesPage() {
 
     setSaving(true);
     try {
-      const isEdit  = modal === 'edit';
-      const payload = {
-        ...(isEdit ? { id: editId } : {}),
-        name:          form.name.trim(),
-        description:   form.description.trim() || null,
-        price_per_hour: price,
-        bg_color:      form.bg_color,
-        border_color:  form.border_color,
-        is_active:     form.is_active,
-        sort_order:    parseInt(form.sort_order) || 0,
-      };
+      const isEdit = modal === 'edit';
 
-      const res  = await apiFetch('/api/admin/categories', {
-        method:  isEdit ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      });
-      const data = await res.json();
+      // Use FormData if icon file is present, otherwise JSON
+      if (iconFile) {
+        const formData = new FormData();
+        if (isEdit) formData.append('id', String(editId));
+        formData.append('name', form.name.trim());
+        formData.append('description', form.description.trim() || '');
+        formData.append('price_per_hour', String(price));
+        formData.append('bg_color', form.bg_color);
+        formData.append('border_color', form.border_color);
+        formData.append('is_active', String(form.is_active));
+        formData.append('sort_order', String(parseInt(form.sort_order) || 0));
+        if (form.icon_color) formData.append('icon_color', form.icon_color);
+        formData.append('icon', iconFile);
 
-      if (res.ok) {
-        toast.success(isEdit ? 'Category updated' : 'Category created');
-        closeModal();
-        fetchCategories();
+        const res = await apiFetch('/api/admin/categories', {
+          method: isEdit ? 'PATCH' : 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          toast.success(isEdit ? 'Category updated' : 'Category created');
+          closeModal();
+          fetchCategories();
+        } else {
+          toast.error(data.error || 'Save failed');
+        }
       } else {
-        toast.error(data.error || 'Save failed');
+        // JSON payload (library icon or no icon)
+        const payload = {
+          ...(isEdit ? { id: editId } : {}),
+          name: form.name.trim(),
+          description: form.description.trim() || null,
+          price_per_hour: price,
+          bg_color: form.bg_color,
+          border_color: form.border_color,
+          is_active: form.is_active,
+          sort_order: parseInt(form.sort_order) || 0,
+          icon_color: form.icon_color || null,
+          ...(selectedLibraryIcon ? { icon_path: selectedLibraryIcon } : {}),
+        };
+
+        const res = await apiFetch('/api/admin/categories', {
+          method: isEdit ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          toast.success(isEdit ? 'Category updated' : 'Category created');
+          closeModal();
+          fetchCategories();
+        } else {
+          toast.error(data.error || 'Save failed');
+        }
       }
     } catch {
       toast.error('Save failed');
@@ -267,11 +399,22 @@ export default function CategoriesPage() {
                       {/* Name + slug */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          {/* Color preview swatch */}
-                          <div
-                            className="w-9 h-9 rounded-xl border flex-shrink-0"
-                            style={{ backgroundColor: cat.bg_color, borderColor: cat.border_color }}
-                          />
+                          {/* Icon or color preview swatch */}
+                          {cat.icon_path ? (
+                            <div className="w-9 h-9 rounded-xl border flex-shrink-0 flex items-center justify-center overflow-hidden" style={{ borderColor: cat.border_color }}>
+                              <img 
+                                src={cat.icon_path} 
+                                alt={cat.name}
+                                className="w-6 h-6 object-contain"
+                                style={cat.icon_path.endsWith('.svg') && cat.icon_color ? { filter: `brightness(0) saturate(100%)`, color: cat.icon_color } : {}}
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              className="w-9 h-9 rounded-xl border flex-shrink-0"
+                              style={{ backgroundColor: cat.bg_color, borderColor: cat.border_color }}
+                            />
+                          )}
                           <div>
                             <p className="text-sm font-semibold text-[#2D2D2D]">{cat.name}</p>
                             <p className="text-xs text-[#bdbdbd] font-mono">{cat.slug}</p>
@@ -405,6 +548,141 @@ export default function CategoriesPage() {
                   rows={2}
                   className="w-full px-4 py-2.5 border border-[#E0E0E0] rounded-xl text-sm text-[#2D2D2D] placeholder-[#bdbdbd] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all resize-none"
                 />
+              </div>
+
+              {/* Icon Upload */}
+              <div>
+                <label className="block text-xs font-semibold text-[#757575] uppercase tracking-wider mb-1.5">
+                  Category Icon
+                </label>
+                <div className="space-y-3">
+                  {/* Current icon or preview */}
+                  {(iconPreview || currentIconPath) && (
+                    <div className="flex items-center gap-3 p-3 bg-[#F9F9F9] rounded-xl border border-[#E0E0E0]">
+                      <div className="w-12 h-12 rounded-lg border border-[#E0E0E0] bg-white flex items-center justify-center overflow-hidden">
+                        <img 
+                          src={iconPreview || currentIconPath || ''} 
+                          alt="Icon preview"
+                          className="w-8 h-8 object-contain"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-[#2D2D2D]">
+                          {iconFile ? iconFile.name : 'Current icon'}
+                        </p>
+                        <p className="text-[10px] text-[#757575] mt-0.5">
+                          {iconFile ? `${(iconFile.size / 1024).toFixed(1)} KB` : 'Uploaded'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={removeIcon}
+                        className="p-1.5 text-[#757575] hover:bg-white hover:text-red-600 rounded-lg transition-all"
+                        title="Remove icon"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Icon Library Selection */}
+                  {availableIcons.length > 0 && !iconFile && (
+                    <div>
+                      <p className="text-[10px] text-[#757575] mb-2 font-medium">
+                        {currentIconPath ? 'Change Icon from Library' : 'Select from Icon Library'}
+                      </p>
+                      <div className="grid grid-cols-4 gap-2 p-3 bg-[#F9F9F9] rounded-xl border border-[#E0E0E0] max-h-48 overflow-y-auto">
+                        {availableIcons.map((icon) => (
+                          <button
+                            key={icon.path}
+                            type="button"
+                            onClick={() => selectLibraryIcon(icon.path)}
+                            className={`relative p-3 rounded-lg border-2 transition-all hover:scale-105 ${
+                              selectedLibraryIcon === icon.path || currentIconPath === icon.path
+                                ? 'border-[var(--primary)] bg-[var(--light-purple)]'
+                                : 'border-[#E0E0E0] bg-white hover:border-[#BDBDBD]'
+                            }`}
+                            title={icon.name}
+                          >
+                            <div className="w-full aspect-square flex items-center justify-center">
+                              <img 
+                                src={icon.path} 
+                                alt={icon.name}
+                                className="w-8 h-8 object-contain"
+                              />
+                            </div>
+                            {(selectedLibraryIcon === icon.path || currentIconPath === icon.path) && (
+                              <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--primary)] flex items-center justify-center">
+                                <Check size={10} className="text-white" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[9px] text-[#bdbdbd] mt-1.5 text-center">
+                        Click an icon to select it
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Divider */}
+                  {availableIcons.length > 0 && !iconFile && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-px bg-[#E0E0E0]"></div>
+                      <span className="text-[10px] text-[#BDBDBD] font-medium">OR</span>
+                      <div className="flex-1 h-px bg-[#E0E0E0]"></div>
+                    </div>
+                  )}
+
+                  {/* Upload button */}
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                      onChange={handleIconChange}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#E0E0E0] rounded-xl text-sm font-medium text-[#757575] hover:border-[var(--primary)] hover:bg-[var(--light-purple)] transition-all"
+                    >
+                      <Upload size={16} />
+                      {iconPreview || currentIconPath ? 'Change Icon' : 'Upload Custom Icon'}
+                    </button>
+                    <p className="text-[10px] text-[#bdbdbd] mt-1.5 text-center">
+                      JPEG, PNG, WebP, or SVG • Max 10 MB
+                    </p>
+                  </div>
+
+                  {/* Icon color (for SVG) */}
+                  {(iconPreview || currentIconPath) && (iconFile?.type === 'image/svg+xml' || currentIconPath?.endsWith('.svg')) && (
+                    <div>
+                      <label className="block text-[10px] text-[#757575] mb-1.5">
+                        SVG Icon Color (Optional)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={form.icon_color || form.border_color}
+                          onChange={(e) => setForm((f) => ({ ...f, icon_color: e.target.value }))}
+                          className="w-8 h-8 rounded-lg border border-[#E0E0E0] cursor-pointer p-0.5"
+                        />
+                        <input
+                          type="text"
+                          value={form.icon_color || ''}
+                          onChange={(e) => setForm((f) => ({ ...f, icon_color: e.target.value }))}
+                          placeholder="e.g. #6B9BFA"
+                          className="flex-1 px-3 py-1.5 border border-[#E0E0E0] rounded-lg text-xs font-mono text-[#2D2D2D] placeholder-[#bdbdbd] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                        />
+                      </div>
+                      <p className="text-[9px] text-[#bdbdbd] mt-1">
+                        Set a custom color for SVG icons (will use border color if empty)
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Price per hour */}

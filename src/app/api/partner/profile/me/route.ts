@@ -22,13 +22,18 @@ export async function GET(req: NextRequest) {
       rating: number | null;
       balance: number | null;
       selfie: string | null;
+      id_front: string | null;
+      id_back: string | null;
+      bank_doc: string | null;
     }[]>(
       `SELECT p.id, p.name, p.phone, p.gender, p.language, p.categories,
               p.team_option, p.vehicle_type, p.status,
               p.rating, p.balance,
-              pd.selfie
+              pd.selfie, pd.id_front, pd.id_back,
+              pbd.document_path AS bank_doc
        FROM partners p
        LEFT JOIN partner_documents pd ON pd.partner_id = p.id
+       LEFT JOIN partner_bank_documents pbd ON pbd.partner_id = p.id
        WHERE p.id = ? AND p.deleted_at IS NULL
        LIMIT 1`,
       [payload.userId]
@@ -41,8 +46,11 @@ export async function GET(req: NextRequest) {
     const partner = partners[0];
     const profileComplete = !!(partner.name && partner.name.trim().length > 0);
 
-    // Return the raw relative path — Flutter prepends its own baseUrl.
+    // Return the raw relative paths — Flutter prepends its own baseUrl.
     const selfiePath = partner.selfie ?? null;
+    const idFrontPath = partner.id_front ?? null;
+    const idBackPath = partner.id_back ?? null;
+    const bankDocPath = partner.bank_doc ?? null;
 
     // ── Today's earnings & jobs — sourced directly from the bookings table ──
     // Counts completed bookings for this partner where completed_at is today.
@@ -83,6 +91,9 @@ export async function GET(req: NextRequest) {
       today_earnings:  todayEarnings,
       today_jobs:      todayJobs,
       selfie_url:      selfiePath,
+      id_front_url:    idFrontPath,
+      id_back_url:     idBackPath,
+      bank_doc_url:    bankDocPath,
     });
   } catch (err) {
     console.error('profile/me error:', err);

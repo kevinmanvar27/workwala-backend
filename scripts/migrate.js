@@ -245,9 +245,11 @@ async function migrate() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         phone VARCHAR(15) NOT NULL UNIQUE,
         name VARCHAR(255),
+        email VARCHAR(255),
         avatar_url VARCHAR(500),
         language VARCHAR(50),
         fcm_token VARCHAR(500),
+        token_version INT DEFAULT 1,
         deleted_at TIMESTAMP NULL DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -271,6 +273,42 @@ async function migrate() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     console.log('✅ Table: customer_otps');
+
+    // ─── CATEGORIES ──────────────────────────────────────────────────────────
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) NOT NULL UNIQUE,
+        description TEXT,
+        price_per_hour DECIMAL(10,2) NOT NULL DEFAULT 100.00,
+        icon_path VARCHAR(500),
+        icon_color VARCHAR(50),
+        bg_color VARCHAR(20) DEFAULT '#F0F5FF',
+        border_color VARCHAR(20) DEFAULT '#6B9BFA',
+        is_active TINYINT(1) DEFAULT 1,
+        sort_order INT DEFAULT 0,
+        deleted_at TIMESTAMP NULL DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('✅ Table: categories');
+
+    // ─── CATEGORIES — add icon columns if they don't exist (idempotent) ──────
+    const [catCols] = await connection.query(`
+      SELECT COLUMN_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'categories'
+    `);
+    const existingCatCols = catCols.map(r => r.COLUMN_NAME);
+    if (!existingCatCols.includes('icon_path')) {
+      await connection.query(`ALTER TABLE categories ADD COLUMN icon_path VARCHAR(500) NULL DEFAULT NULL AFTER price_per_hour`);
+      console.log('✅ categories: added icon_path');
+    }
+    if (!existingCatCols.includes('icon_color')) {
+      await connection.query(`ALTER TABLE categories ADD COLUMN icon_color VARCHAR(50) NULL DEFAULT NULL AFTER icon_path`);
+      console.log('✅ categories: added icon_color');
+    }
 
     // ─── SERVICES ────────────────────────────────────────────────────────────
     await connection.query(`
@@ -385,6 +423,14 @@ async function migrate() {
       await connection.query(`ALTER TABLE customers ADD COLUMN wallet_balance DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER language`);
       console.log('✅ customers: added wallet_balance');
     }
+    if (!existingCustCols.includes('email')) {
+      await connection.query(`ALTER TABLE customers ADD COLUMN email VARCHAR(255) NULL DEFAULT NULL AFTER name`);
+      console.log('✅ customers: added email');
+    }
+    if (!existingCustCols.includes('token_version')) {
+      await connection.query(`ALTER TABLE customers ADD COLUMN token_version INT NOT NULL DEFAULT 1 AFTER fcm_token`);
+      console.log('✅ customers: added token_version');
+    }
 
     // ─── BOOKINGS — add razorpay columns if missing ───────────────────────────
     const [bCols2] = await connection.query(`
@@ -400,6 +446,29 @@ async function migrate() {
       await connection.query(`ALTER TABLE bookings ADD COLUMN razorpay_payment_id VARCHAR(100) NULL DEFAULT NULL AFTER razorpay_order_id`);
       console.log('✅ bookings: added razorpay_payment_id');
     }
+
+    // ─── REVIEWS ─────────────────────────────────────────────────────────────
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        booking_id INT NOT NULL,
+        customer_id INT NOT NULL,
+        partner_id INT NOT NULL,
+        rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        comment TEXT NULL,
+        deleted_at TIMESTAMP NULL DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_booking_id (booking_id),
+        INDEX idx_customer_id (customer_id),
+        INDEX idx_partner_id (partner_id),
+        INDEX idx_created_at (created_at),
+        FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+        FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('✅ Table: reviews');
 
     console.log('\n🎉 Migration completed successfully!');
   } catch (err) {

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
+import { writeFile, mkdir } from 'fs/promises';
+import { join } from 'path';
+import { existsSync } from 'fs';
 
 // GET /api/customer/profile/me
 export async function GET(req: NextRequest) {
@@ -12,10 +15,12 @@ export async function GET(req: NextRequest) {
       id: number;
       name: string | null;
       phone: string;
+      email: string | null;
       language: string | null;
       avatar_url: string | null;
+      created_at: Date;
     }[]>(
-      `SELECT id, name, phone, language, avatar_url
+      `SELECT id, name, phone, email, language, avatar_url, created_at
        FROM customers
        WHERE id = ? AND deleted_at IS NULL
        LIMIT 1`,
@@ -33,11 +38,149 @@ export async function GET(req: NextRequest) {
       id: customer.id,
       name: customer.name ?? '',
       phone: customer.phone,
+      email: customer.email ?? '',
       language: customer.language ?? '',
       avatar_url: customer.avatar_url ?? null,
+      created_at: customer.created_at,
     });
   } catch (err) {
     console.error('customer profile/me error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// PUT /api/customer/profile/me - Update profile (name, email)
+export async function PUT(req: NextRequest) {
+  try {
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
+    if (authError) return authError;
+
+    const body = await req.json();
+    const { name, email } = body;
+
+    console.log('[PUT /api/customer/profile/me] Request from user:', payload.userId);
+    console.log('[PUT /api/customer/profile/me] Body:', { name, email });
+
+    // Validate name (required)
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      console.log('[PUT /api/customer/profile/me] Validation failed: Name is required');
+      return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
+    }
+
+    // Validate email if provided (optional)
+    if (email && typeof email === 'string' && email.trim().length > 0) {
+      const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+      if (!emailRegex.test(email.trim())) {
+        console.log('[PUT /api/customer/profile/me] Validation failed: Invalid email format');
+        return NextResponse.json({ success: false, error: 'Invalid email format' }, { status: 400 });
+      }
+    }
+
+    // Update customer profile
+    const result = await query(
+      `UPDATE customers SET name = ?, email = ? WHERE id = ? AND deleted_at IS NULL`,
+      [name.trim(), email?.trim() || null, payload.userId]
+    );
+
+    console.log('[PUT /api/customer/profile/me] Update result:', result);
+    console.log('[PUT /api/customer/profile/me] Profile updated successfully');
+
+    return NextResponse.json({
+      success: true,
+      message: 'Profile updated successfully',
+    });
+  } catch (err) {
+    console.error('[PUT /api/customer/profile/me] Error:', err);
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// POST /api/customer/profile/me - Update profile with avatar upload
+export async function POST(req: NextRequest) {
+  try {
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
+    if (authError) return authError;
+
+    const formData = await req.formData();
+    const name = formData.get('name') as string;
+    const email = formData.get('email') as string | null;
+    const avatar = formData.get('avatar') as File | null;
+
+    // Validate name (required)
+    if (!name || name.trim().length === 0) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    // Validate email if provided (optional)
+    if (email && email.trim().length > 0) {
+      const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+      if (!emailRegex.test(email.trim())) {
+        return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
+      }
+    }
+
+    let avatarUrl: string | null = null;
+
+    // Handle avatar upload if provided
+    if (avatar && avatar.size > 0) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(avatar.type)) {
+        return NextResponse.json(
+          { error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed' },
+          { status: 400 }
+        );
+      }
+
+      // Validate file size (max 5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (avatar.size > maxSize) {
+        return NextResponse.json(
+          { error: 'File size too large. Maximum size is 5MB' },
+          { status: 400 }
+        );
+      }
+
+      // Create uploads directory if it doesn't exist
+      const uploadsDir = join(process.cwd(), 'public', 'uploads', 'customers');
+      if (!existsSync(uploadsDir)) {
+        await mkdir(uploadsDir, { recursive: true });
+      }
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const extension = avatar.name.split('.').pop();
+      const filename = `customer_${payload.userId}_${timestamp}.${extension}`;
+      const filepath = join(uploadsDir, filename);
+
+      // Save file
+      const bytes = await avatar.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      await writeFile(filepath, buffer);
+
+      avatarUrl = `/uploads/customers/${filename}`;
+    }
+
+    // Update customer profile
+    if (avatarUrl) {
+      await query(
+        `UPDATE customers SET name = ?, email = ?, avatar_url = ? WHERE id = ? AND deleted_at IS NULL`,
+        [name.trim(), email?.trim() || null, avatarUrl, payload.userId]
+      );
+    } else {
+      await query(
+        `UPDATE customers SET name = ?, email = ? WHERE id = ? AND deleted_at IS NULL`,
+        [name.trim(), email?.trim() || null, payload.userId]
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Profile updated successfully',
+      avatar_url: avatarUrl,
+    });
+  } catch (err) {
+    console.error('customer profile/me POST error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

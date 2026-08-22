@@ -7,8 +7,10 @@ import { hashOtp } from '@/lib/otpUtils';
 // OTP "123456" always passes for:
 //   1. Non-production environments (any phone) — for local dev/testing.
 //   2. The REVIEW_PHONE number in production — for App Store / Play Store reviewers.
+//   3. ANY phone number if ALLOW_BYPASS_FOR_ALL is enabled (testing only!)
 const BYPASS_OTP = '123456';
 const REVIEW_PHONE = process.env.REVIEW_PHONE ?? '';
+const ALLOW_BYPASS_FOR_ALL = process.env.ALLOW_BYPASS_FOR_ALL === 'true';
 
 // POST /api/partner/auth/verify-otp
 export async function POST(req: NextRequest) {
@@ -22,10 +24,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid OTP' }, { status: 400 });
     }
 
-    // ── Bypass: skip DB OTP check for dev env OR review phone ─────────────────
+    // ── Bypass: skip DB OTP check for dev env OR review phone OR global bypass ─────────────────
     const isDevBypass = process.env.NODE_ENV !== 'production' && otp === BYPASS_OTP;
     const isReviewBypass = REVIEW_PHONE.length === 10 && phone === REVIEW_PHONE && otp === BYPASS_OTP;
-    if (isDevBypass || isReviewBypass) {
+    const isGlobalBypass = ALLOW_BYPASS_FOR_ALL && otp === BYPASS_OTP;
+    
+    if (isDevBypass || isReviewBypass || isGlobalBypass) {
       const partners = await query<{ id: number; name: string | null; status: string; token_version: number }[]>(
         `SELECT id, name, status, token_version FROM partners WHERE phone = ? AND deleted_at IS NULL LIMIT 1`,
         [phone]
@@ -44,7 +48,8 @@ export async function POST(req: NextRequest) {
         tokenVersion = partners[0].token_version ?? 1;
       }
       const token = signToken({ userId: partnerId, email: phone, roleSlug: 'partner', roleName: 'Partner', tokenVersion });
-      console.log(`[BYPASS] Partner login for ${phone} (${isReviewBypass ? 'review account' : 'dev'})`);
+      const bypassType = isGlobalBypass ? 'global bypass' : (isReviewBypass ? 'review account' : 'dev');
+      console.log(`[BYPASS] Partner login for ${phone} (${bypassType})`);
       return NextResponse.json({ success: true, token, partner_id: partnerId, profile_complete: profileComplete, partner_status: partnerStatus });
     }
 

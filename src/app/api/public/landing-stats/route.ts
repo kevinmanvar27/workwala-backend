@@ -23,8 +23,10 @@ export async function GET() {
       price_per_hour: string;
       bg_color: string;
       border_color: string;
+      icon_path: string | null;
+      icon_color: string | null;
     }[]>(
-      `SELECT id, name, slug, description, price_per_hour, bg_color, border_color
+      `SELECT id, name, slug, description, price_per_hour, bg_color, border_color, icon_path, icon_color
        FROM categories
        WHERE is_active = 1 AND deleted_at IS NULL
        ORDER BY sort_order ASC, id ASC
@@ -46,6 +48,8 @@ export async function GET() {
         pricePerHour:  parseFloat(c.price_per_hour),
         bgColor:       c.bg_color   || '#F0F5FF',
         borderColor:   c.border_color || '#6B9BFA',
+        iconPath:      c.icon_path ?? null,
+        iconColor:     c.icon_color ?? c.border_color ?? '#6B9BFA',
       })),
     });
   } catch (err) {

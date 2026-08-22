@@ -56,9 +56,14 @@ interface PartnerForm {
   vehicle_type: string;
   categories: string[];   // array of selected category names
   status: PartnerStatus;
+  // Document files (for upload)
+  aadhaar_front?: File | null;
+  aadhaar_back?: File | null;
+  bank_doc?: File | null;  // Changed from pan_card to bank_doc
+  profile_photo?: File | null;
 }
 
-// Legacy alias kept for edit (uses string for free-text input)
+// Edit form with document upload support
 interface EditForm {
   name: string;
   phone: string;
@@ -66,8 +71,13 @@ interface EditForm {
   language: string;
   team_option: string;
   vehicle_type: string;
-  categories: string;
+  categories: string[];  // Array for multi-select chips
   status: PartnerStatus;
+  // Document files (for upload)
+  aadhaar_front?: File | null;
+  aadhaar_back?: File | null;
+  bank_doc?: File | null;  // Changed from pan_card to bank_doc
+  profile_photo?: File | null;
 }
 
 interface CategoryOption { id: number; name: string; }
@@ -195,28 +205,69 @@ export default function PartnersPage() {
     }
     setAddSaving(true);
     try {
-      const res = await apiFetch('/api/admin/partners', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone,
-          name:         addForm.name.trim()         || undefined,
-          gender:       addForm.gender               || undefined,
-          language:     addForm.language.trim()      || undefined,
-          team_option:  addForm.team_option          || undefined,
-          vehicle_type: addForm.vehicle_type.trim()  || undefined,
-          categories:   addForm.categories.length ? addForm.categories : undefined,
-          status:       addForm.status,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(`Partner "${addForm.name || phone}" added successfully`);
-        setAddOpen(false);
-        setAddForm(BLANK_ADD);
-        fetchPartners();
+      // Check if we have document files to upload
+      const hasDocuments = addForm.aadhaar_front || addForm.aadhaar_back || 
+                          addForm.bank_doc || addForm.profile_photo;
+
+      if (hasDocuments) {
+        // Use FormData for document uploads
+        const formData = new FormData();
+        formData.append('phone', phone);
+        if (addForm.name.trim()) formData.append('name', addForm.name.trim());
+        if (addForm.gender) formData.append('gender', addForm.gender);
+        if (addForm.language.trim()) formData.append('language', addForm.language.trim());
+        if (addForm.team_option) formData.append('team_option', addForm.team_option);
+        if (addForm.vehicle_type.trim()) formData.append('vehicle_type', addForm.vehicle_type.trim());
+        formData.append('status', addForm.status);
+        
+        // Append categories as separate entries
+        addForm.categories.forEach(cat => formData.append('categories', cat));
+        
+        // Append document files
+        if (addForm.aadhaar_front) formData.append('aadhaar_front', addForm.aadhaar_front);
+        if (addForm.aadhaar_back) formData.append('aadhaar_back', addForm.aadhaar_back);
+        if (addForm.bank_doc) formData.append('bank_doc', addForm.bank_doc);
+        if (addForm.profile_photo) formData.append('profile_photo', addForm.profile_photo);
+
+        const res = await apiFetch('/api/admin/partners', {
+          method: 'POST',
+          body: formData,
+          // Don't set Content-Type - browser will set it with boundary
+        });
+        const data = await res.json();
+        if (res.ok) {
+          toast.success(`Partner "${addForm.name || phone}" added successfully`);
+          setAddOpen(false);
+          setAddForm(BLANK_ADD);
+          fetchPartners();
+        } else {
+          toast.error(data.error || 'Failed to add partner');
+        }
       } else {
-        toast.error(data.error || 'Failed to add partner');
+        // No documents - use JSON
+        const res = await apiFetch('/api/admin/partners', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone,
+            name:         addForm.name.trim()         || undefined,
+            gender:       addForm.gender               || undefined,
+            language:     addForm.language.trim()      || undefined,
+            team_option:  addForm.team_option          || undefined,
+            vehicle_type: addForm.vehicle_type.trim()  || undefined,
+            categories:   addForm.categories.length ? addForm.categories : undefined,
+            status:       addForm.status,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          toast.success(`Partner "${addForm.name || phone}" added successfully`);
+          setAddOpen(false);
+          setAddForm(BLANK_ADD);
+          fetchPartners();
+        } else {
+          toast.error(data.error || 'Failed to add partner');
+        }
       }
     } catch { toast.error('Failed to add partner'); }
     finally { setAddSaving(false); }
@@ -232,6 +283,16 @@ export default function PartnersPage() {
     }));
   };
 
+  // Toggle a category in the edit form
+  const toggleEditCategory = (name: string) => {
+    setEditForm(f => f ? ({
+      ...f,
+      categories: f.categories.includes(name)
+        ? f.categories.filter(c => c !== name)
+        : [...f.categories, name],
+    }) : f);
+  };
+
   // Open edit modal
   const openEdit = (partner: PartnerRow) => {
     setEditTarget(partner);
@@ -242,7 +303,7 @@ export default function PartnersPage() {
       language:     partner.language || '',
       team_option:  partner.team_option || '',
       vehicle_type: partner.vehicle_type || '',
-      categories:   (partner.categories || []).join(', '),
+      categories:   partner.categories || [],  // Keep as array for multi-select
       status:       partner.status,
     });
   };
@@ -252,37 +313,76 @@ export default function PartnersPage() {
     if (!editTarget || !editForm) return;
     setSaving(true);
     try {
-      const categoriesArr = editForm.categories
-        .split(',')
-        .map(c => c.trim())
-        .filter(Boolean);
+      // Check if we have document files to upload
+      const hasDocuments = editForm.aadhaar_front || editForm.aadhaar_back || 
+                          editForm.bank_doc || editForm.profile_photo;
 
-      const res = await apiFetch('/api/admin/partners', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id:           editTarget.id,
-          action:       'edit',
-          name:         editForm.name         || undefined,
-          phone:        editForm.phone        || undefined,
-          gender:       editForm.gender       || undefined,
-          language:     editForm.language     || undefined,
-          team_option:  editForm.team_option  || undefined,
-          vehicle_type: editForm.vehicle_type || undefined,
-          categories:   categoriesArr.length ? categoriesArr : undefined,
-          status:       editForm.status,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success('Partner updated');
-        setEditTarget(null);
-        setEditForm(null);
-        // Also close detail preview if open for same partner
-        if (preview?.id === editTarget.id) setPreview(null);
-        fetchPartners();
+      if (hasDocuments) {
+        // Use FormData for document uploads
+        const formData = new FormData();
+        formData.append('id', editTarget.id.toString());
+        formData.append('action', 'edit');
+        
+        if (editForm.name) formData.append('name', editForm.name);
+        if (editForm.phone) formData.append('phone', editForm.phone);
+        if (editForm.gender) formData.append('gender', editForm.gender);
+        if (editForm.language) formData.append('language', editForm.language);
+        if (editForm.team_option) formData.append('team_option', editForm.team_option);
+        if (editForm.vehicle_type) formData.append('vehicle_type', editForm.vehicle_type);
+        formData.append('status', editForm.status);
+        
+        // Append categories as separate entries
+        editForm.categories.forEach(cat => formData.append('categories', cat));
+        
+        // Append document files
+        if (editForm.aadhaar_front) formData.append('aadhaar_front', editForm.aadhaar_front);
+        if (editForm.aadhaar_back) formData.append('aadhaar_back', editForm.aadhaar_back);
+        if (editForm.bank_doc) formData.append('bank_doc', editForm.bank_doc);
+        if (editForm.profile_photo) formData.append('profile_photo', editForm.profile_photo);
+
+        const res = await apiFetch('/api/admin/partners', {
+          method: 'PATCH',
+          body: formData,
+          // Don't set Content-Type - browser will set it with boundary
+        });
+        const data = await res.json();
+        if (res.ok) {
+          toast.success('Partner updated');
+          setEditTarget(null);
+          setEditForm(null);
+          if (preview?.id === editTarget.id) setPreview(null);
+          fetchPartners();
+        } else {
+          toast.error(data.error || 'Failed to save');
+        }
       } else {
-        toast.error(data.error || 'Failed to save');
+        // No documents - use JSON
+        const res = await apiFetch('/api/admin/partners', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id:           editTarget.id,
+            action:       'edit',
+            name:         editForm.name         || undefined,
+            phone:        editForm.phone        || undefined,
+            gender:       editForm.gender       || undefined,
+            language:     editForm.language     || undefined,
+            team_option:  editForm.team_option  || undefined,
+            vehicle_type: editForm.vehicle_type || undefined,
+            categories:   editForm.categories.length ? editForm.categories : undefined,
+            status:       editForm.status,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          toast.success('Partner updated');
+          setEditTarget(null);
+          setEditForm(null);
+          if (preview?.id === editTarget.id) setPreview(null);
+          fetchPartners();
+        } else {
+          toast.error(data.error || 'Failed to save');
+        }
       }
     } catch { toast.error('Failed to save'); }
     finally { setSaving(false); }
@@ -814,13 +914,15 @@ export default function PartnersPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-[#757575] uppercase tracking-wider mb-1.5">Team Option</label>
-                  <input
-                    type="text"
+                  <select
                     value={editForm.team_option}
                     onChange={e => setEditForm(f => f ? { ...f, team_option: e.target.value } : f)}
-                    placeholder="Solo / Team"
-                    className="w-full px-3 py-2 border border-[#E0E0E0] rounded-xl text-sm text-[#2D2D2D] placeholder-[#bdbdbd] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all"
-                  />
+                    className="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-xl text-sm text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all bg-white"
+                  >
+                    <option value="">Select (Yes / No)</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No (Solo)</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-[#757575] uppercase tracking-wider mb-1.5">Vehicle Type</label>
@@ -836,16 +938,141 @@ export default function PartnersPage() {
 
               {/* Categories */}
               <div>
-                <label className="block text-[11px] font-semibold text-[#757575] uppercase tracking-wider mb-1.5">
-                  Categories <span className="font-normal normal-case text-[#bdbdbd]">(comma-separated)</span>
-                </label>
-                <input
-                  type="text"
-                  value={editForm.categories}
-                  onChange={e => setEditForm(f => f ? { ...f, categories: e.target.value } : f)}
-                  placeholder="Plumbing, Electrical, Cleaning"
-                  className="w-full px-3 py-2 border border-[#E0E0E0] rounded-xl text-sm text-[#2D2D2D] placeholder-[#bdbdbd] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[11px] font-semibold text-[#757575] uppercase tracking-wider">
+                    Service Categories
+                  </label>
+                  {editForm.categories.length > 0 && (
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--light-purple)', color: 'var(--primary)' }}>
+                      {editForm.categories.length} selected
+                    </span>
+                  )}
+                </div>
+                {categoryOptions.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {categoryOptions.map(cat => {
+                      const selected = editForm.categories.includes(cat.name);
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => toggleEditCategory(cat.name)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                            selected
+                              ? 'text-white border-transparent'
+                              : 'bg-white text-[#757575] border-[#E0E0E0] hover:border-[var(--primary)] hover:text-[var(--primary)]'
+                          }`}
+                          style={selected ? { backgroundColor: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
+                        >
+                          {selected && <CheckCircle size={11} />}
+                          {cat.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 bg-[#F9F9F9] rounded-xl">
+                    <Tag size={13} className="text-[#bdbdbd]" />
+                    <p className="text-xs text-[#757575]">No active categories found</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Document Uploads */}
+              <div>
+                <p className="text-[11px] font-semibold text-[#757575] uppercase tracking-wider mb-3">Documents (Optional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Aadhaar Front */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#2D2D2D] mb-1.5">Aadhaar Front</label>
+                    {editTarget?.id_front && !editForm.aadhaar_front && (
+                      <div className="mb-2 relative group">
+                        <a href={editTarget.id_front} target="_blank" rel="noopener noreferrer" className="block">
+                          <img src={editTarget.id_front} alt="Current Aadhaar Front" className="w-full h-20 object-cover rounded-lg border border-[#E0E0E0]" />
+                        </a>
+                        <p className="text-[10px] text-[#2E7D32] mt-1">✓ Current document uploaded</p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={e => setEditForm(f => f ? { ...f, aadhaar_front: e.target.files?.[0] || null } : f)}
+                      className="w-full text-xs text-[#757575] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--light-purple)] file:text-[var(--primary)] hover:file:bg-[var(--primary)] hover:file:text-white file:cursor-pointer file:transition-all"
+                    />
+                    {editForm.aadhaar_front && (
+                      <p className="text-[10px] text-[#2E7D32] mt-1">✓ New file: {editForm.aadhaar_front.name}</p>
+                    )}
+                  </div>
+
+                  {/* Aadhaar Back */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#2D2D2D] mb-1.5">Aadhaar Back</label>
+                    {editTarget?.id_back && !editForm.aadhaar_back && (
+                      <div className="mb-2 relative group">
+                        <a href={editTarget.id_back} target="_blank" rel="noopener noreferrer" className="block">
+                          <img src={editTarget.id_back} alt="Current Aadhaar Back" className="w-full h-20 object-cover rounded-lg border border-[#E0E0E0]" />
+                        </a>
+                        <p className="text-[10px] text-[#2E7D32] mt-1">✓ Current document uploaded</p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={e => setEditForm(f => f ? { ...f, aadhaar_back: e.target.files?.[0] || null } : f)}
+                      className="w-full text-xs text-[#757575] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--light-purple)] file:text-[var(--primary)] hover:file:bg-[var(--primary)] hover:file:text-white file:cursor-pointer file:transition-all"
+                    />
+                    {editForm.aadhaar_back && (
+                      <p className="text-[10px] text-[#2E7D32] mt-1">✓ New file: {editForm.aadhaar_back.name}</p>
+                    )}
+                  </div>
+
+                  {/* PAN Card / Bank Doc */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#2D2D2D] mb-1.5">Bank Document</label>
+                    {editTarget?.bank_document && !editForm.bank_doc && (
+                      <div className="mb-2 relative group">
+                        <a href={editTarget.bank_document} target="_blank" rel="noopener noreferrer" className="block">
+                          <img src={editTarget.bank_document} alt="Current Bank Document" className="w-full h-20 object-cover rounded-lg border border-[#E0E0E0]" />
+                        </a>
+                        <p className="text-[10px] text-[#2E7D32] mt-1">✓ Current document uploaded</p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={e => setEditForm(f => f ? { ...f, bank_doc: e.target.files?.[0] || null } : f)}
+                      className="w-full text-xs text-[#757575] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--light-purple)] file:text-[var(--primary)] hover:file:bg-[var(--primary)] hover:file:text-white file:cursor-pointer file:transition-all"
+                    />
+                    {editForm.bank_doc && (
+                      <p className="text-[10px] text-[#2E7D32] mt-1">✓ New file: {editForm.bank_doc.name}</p>
+                    )}
+                  </div>
+
+                  {/* Profile Photo */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#2D2D2D] mb-1.5">Profile Photo</label>
+                    {editTarget?.selfie && !editForm.profile_photo && (
+                      <div className="mb-2 relative group">
+                        <a href={editTarget.selfie} target="_blank" rel="noopener noreferrer" className="block">
+                          <img src={editTarget.selfie} alt="Current Profile Photo" className="w-full h-20 object-cover rounded-lg border border-[#E0E0E0]" />
+                        </a>
+                        <p className="text-[10px] text-[#2E7D32] mt-1">✓ Current photo uploaded</p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={e => setEditForm(f => f ? { ...f, profile_photo: e.target.files?.[0] || null } : f)}
+                      className="w-full text-xs text-[#757575] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--light-purple)] file:text-[var(--primary)] hover:file:bg-[var(--primary)] hover:file:text-white file:cursor-pointer file:transition-all"
+                    />
+                    {editForm.profile_photo && (
+                      <p className="text-[10px] text-[#2E7D32] mt-1">✓ New file: {editForm.profile_photo.name}</p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-[10px] text-[#757575] mt-2">
+                  Accepted formats: JPEG, PNG, WebP, PDF (max 10MB each). Upload new files to replace existing documents.
+                </p>
               </div>
 
               {/* Status */}
@@ -1024,7 +1251,7 @@ export default function PartnersPage() {
                       onChange={e => setAddForm(f => ({ ...f, team_option: e.target.value }))}
                       className="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-xl text-sm text-[#2D2D2D] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all bg-white"
                     >
-                      <option value="">Select</option>
+                      <option value="">Select (Yes / No)</option>
                       <option value="yes">Yes</option>
                       <option value="no">No (Solo)</option>
                     </select>
@@ -1082,6 +1309,71 @@ export default function PartnersPage() {
                     <p className="text-xs text-[#757575]">No active categories found</p>
                   </div>
                 )}
+              </div>
+
+              {/* ── Document Uploads ── */}
+              <div>
+                <p className="text-[11px] font-semibold text-[#757575] uppercase tracking-wider mb-3">Documents (Optional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Aadhaar Front */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#2D2D2D] mb-1.5">Aadhaar Front</label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={e => setAddForm(f => ({ ...f, aadhaar_front: e.target.files?.[0] || null }))}
+                      className="w-full text-xs text-[#757575] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--light-purple)] file:text-[var(--primary)] hover:file:bg-[var(--primary)] hover:file:text-white file:cursor-pointer file:transition-all"
+                    />
+                    {addForm.aadhaar_front && (
+                      <p className="text-[10px] text-[#2E7D32] mt-1">✓ {addForm.aadhaar_front.name}</p>
+                    )}
+                  </div>
+
+                  {/* Aadhaar Back */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#2D2D2D] mb-1.5">Aadhaar Back</label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={e => setAddForm(f => ({ ...f, aadhaar_back: e.target.files?.[0] || null }))}
+                      className="w-full text-xs text-[#757575] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--light-purple)] file:text-[var(--primary)] hover:file:bg-[var(--primary)] hover:file:text-white file:cursor-pointer file:transition-all"
+                    />
+                    {addForm.aadhaar_back && (
+                      <p className="text-[10px] text-[#2E7D32] mt-1">✓ {addForm.aadhaar_back.name}</p>
+                    )}
+                  </div>
+
+                  {/* Bank Document */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#2D2D2D] mb-1.5">Bank Document</label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={e => setAddForm(f => ({ ...f, bank_doc: e.target.files?.[0] || null }))}
+                      className="w-full text-xs text-[#757575] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--light-purple)] file:text-[var(--primary)] hover:file:bg-[var(--primary)] hover:file:text-white file:cursor-pointer file:transition-all"
+                    />
+                    {addForm.bank_doc && (
+                      <p className="text-[10px] text-[#2E7D32] mt-1">✓ {addForm.bank_doc.name}</p>
+                    )}
+                  </div>
+
+                  {/* Profile Photo */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#2D2D2D] mb-1.5">Profile Photo</label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={e => setAddForm(f => ({ ...f, profile_photo: e.target.files?.[0] || null }))}
+                      className="w-full text-xs text-[#757575] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--light-purple)] file:text-[var(--primary)] hover:file:bg-[var(--primary)] hover:file:text-white file:cursor-pointer file:transition-all"
+                    />
+                    {addForm.profile_photo && (
+                      <p className="text-[10px] text-[#2E7D32] mt-1">✓ {addForm.profile_photo.name}</p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-[10px] text-[#757575] mt-2">
+                  Accepted formats: JPEG, PNG, WebP, PDF (max 10MB each)
+                </p>
               </div>
 
               {/* ── Initial Status ── */}

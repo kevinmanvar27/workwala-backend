@@ -7,8 +7,10 @@ import { hashOtp } from '@/lib/otpUtils';
 // OTP "123456" always passes for:
 //   1. Non-production environments (any phone) — for local dev/testing.
 //   2. The REVIEW_PHONE number in production — for App Store / Play Store reviewers.
+//   3. ANY phone number if ALLOW_BYPASS_FOR_ALL is enabled (testing only!)
 const BYPASS_OTP = '123456';
 const REVIEW_PHONE = process.env.REVIEW_PHONE ?? '';
+const ALLOW_BYPASS_FOR_ALL = process.env.ALLOW_BYPASS_FOR_ALL === 'true';
 
 // POST /api/customer/auth/verify-otp
 export async function POST(req: NextRequest) {
@@ -22,10 +24,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid OTP' }, { status: 400 });
     }
 
-    // ── Bypass: skip DB OTP check for dev env OR review phone ─────────────────
+    // ── Bypass: skip DB OTP check for dev env OR review phone OR global bypass ─────────────────
     const isDevBypass = process.env.NODE_ENV !== 'production' && otp === BYPASS_OTP;
     const isReviewBypass = REVIEW_PHONE.length === 10 && phone === REVIEW_PHONE && otp === BYPASS_OTP;
-    if (isDevBypass || isReviewBypass) {
+    const isGlobalBypass = ALLOW_BYPASS_FOR_ALL && otp === BYPASS_OTP;
+    
+    if (isDevBypass || isReviewBypass || isGlobalBypass) {
       const customers = await query<{ id: number; name: string | null; token_version: number }[]>(
         `SELECT id, name, token_version FROM customers WHERE phone = ? AND deleted_at IS NULL LIMIT 1`,
         [phone]
@@ -39,11 +43,14 @@ export async function POST(req: NextRequest) {
         );
         customerId = result.insertId; isNewUser = true; tokenVersion = 1;
       } else {
-        customerId = customers[0].id; isNewUser = false;
+        customerId = customers[0].id; 
+        // Check if profile is incomplete (name is null or empty)
+        isNewUser = !customers[0].name || customers[0].name.trim() === '';
         tokenVersion = customers[0].token_version ?? 1;
       }
       const token = signToken({ userId: customerId, email: phone, roleSlug: 'customer', roleName: 'Customer', tokenVersion });
-      console.log(`[BYPASS] Customer login for ${phone} (${isReviewBypass ? 'review account' : 'dev'})`);
+      const bypassType = isGlobalBypass ? 'global bypass' : (isReviewBypass ? 'review account' : 'dev');
+      console.log(`[BYPASS] Customer login for ${phone} (${bypassType})`);
       return NextResponse.json({ success: true, token, customer_id: customerId, is_new_user: isNewUser });
     }
 
@@ -107,7 +114,8 @@ export async function POST(req: NextRequest) {
       tokenVersion = 1;
     } else {
       customerId   = customers[0].id;
-      isNewUser    = false;
+      // Check if profile is incomplete (name is null or empty)
+      isNewUser    = !customers[0].name || customers[0].name.trim() === '';
       tokenVersion = customers[0].token_version ?? 1;
     }
 

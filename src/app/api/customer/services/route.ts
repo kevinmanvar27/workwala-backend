@@ -49,6 +49,8 @@ export async function GET(req: NextRequest) {
       cat_price: string | null;
       cat_bg: string | null;
       cat_border: string | null;
+      cat_icon_path: string | null;
+      cat_icon_color: string | null;
       sort_order: number;
     }[]>(
       `SELECT
@@ -63,6 +65,8 @@ export async function GET(req: NextRequest) {
          c.price_per_hour  AS cat_price,
          c.bg_color        AS cat_bg,
          c.border_color    AS cat_border,
+         c.icon_path       AS cat_icon_path,
+         c.icon_color      AS cat_icon_color,
          s.sort_order
        FROM services s
        LEFT JOIN categories c ON c.id = s.category_id AND c.deleted_at IS NULL
@@ -81,6 +85,8 @@ export async function GET(req: NextRequest) {
         price_per_hour: parseFloat(s.cat_price ?? s.svc_price),
         bg_color:       s.cat_bg     ?? s.svc_bg,
         border_color:   s.cat_border ?? s.svc_border,
+        icon_path:      s.cat_icon_path ?? null,
+        icon_color:     s.cat_icon_color ?? s.cat_border ?? s.svc_border,
       })),
     });
   } catch (err) {

@@ -3,8 +3,8 @@ import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
 
 // POST /api/customer/bookings/[id]/review
-// Customer submits a star rating for the partner after job completion.
-// Body: { rating: 1-5 }
+// Customer submits a star rating and optional comment for the partner after job completion.
+// Body: { rating: 1-5, comment?: string }
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -21,6 +21,8 @@ export async function POST(
 
     const body = await req.json();
     const rating = parseInt(body?.rating, 10);
+    const comment = body?.comment?.toString()?.trim() || null;
+
     if (isNaN(rating) || rating < 1 || rating > 5) {
       return NextResponse.json({ error: 'rating must be between 1 and 5' }, { status: 400 });
     }
@@ -47,6 +49,29 @@ export async function POST(
       return NextResponse.json({ error: 'No partner assigned to this booking' }, { status: 400 });
     }
 
+    // Check if review already exists for this booking
+    const existingReviews = await query<Array<{ id: number }>>(
+      `SELECT id FROM reviews WHERE booking_id = ? AND deleted_at IS NULL LIMIT 1`,
+      [bookingId]
+    );
+
+    if (existingReviews.length > 0) {
+      // Update existing review
+      await query(
+        `UPDATE reviews
+         SET rating = ?, comment = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [rating, comment, existingReviews[0].id]
+      );
+    } else {
+      // Insert new review
+      await query(
+        `INSERT INTO reviews (booking_id, customer_id, partner_id, rating, comment, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+        [bookingId, payload.userId, booking.partner_id, rating, comment]
+      );
+    }
+
     // Update the partner's rating — simple rolling average stored on the partner row.
     // Uses a safe COALESCE so partners with no prior rating start fresh.
     await query(
@@ -64,7 +89,7 @@ export async function POST(
       [rating, rating, booking.partner_id]
     );
 
-    return NextResponse.json({ success: true, rating });
+    return NextResponse.json({ success: true, rating, comment });
   } catch (err) {
     console.error('[bookings/review] error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

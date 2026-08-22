@@ -11,6 +11,33 @@ const ALLOWED_DOC_TYPES   = [...ALLOWED_IMAGE_TYPES, 'application/pdf'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 /**
+ * Validates and normalizes team_option to match ENUM('yes','no') in database
+ * @param value - The raw team_option value from request
+ * @returns 'yes', 'no', or null
+ * @throws Error if value is invalid
+ */
+function normalizeTeamOption(value: string | undefined | null): 'yes' | 'no' | null {
+  if (!value || value.trim() === '') {
+    return null;
+  }
+  
+  const normalized = value.toLowerCase().trim();
+  
+  // Accept 'yes', 'true', '1' as 'yes'
+  if (normalized === 'yes' || normalized === 'true' || normalized === '1') {
+    return 'yes';
+  }
+  
+  // Accept 'no', 'false', '0' as 'no'
+  if (normalized === 'no' || normalized === 'false' || normalized === '0') {
+    return 'no';
+  }
+  
+  // Invalid value
+  throw new Error(`team_option must be 'yes' or 'no' (received: '${value}')`);
+}
+
+/**
  * Validates a file's magic bytes against its declared MIME type.
  * Returns true if the file content matches an allowed type.
  */
@@ -69,6 +96,15 @@ export async function POST(req: NextRequest) {
       if (!Array.isArray(categories)) categories = [];
     } catch {
       categories = [];
+    }
+
+    // Validate and normalize team_option
+    let normalizedTeamOption: 'yes' | 'no' | null = null;
+    try {
+      normalizedTeamOption = normalizeTeamOption(teamOption);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Invalid team_option value';
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
 
     // ── File upload helper ───────────────────────────────────────────────────
@@ -130,7 +166,7 @@ export async function POST(req: NextRequest) {
        SET name = ?, gender = ?, language = ?, categories = ?,
            team_option = ?, vehicle_type = ?, updated_at = NOW()
        WHERE id = ?`,
-      [name, gender, language, JSON.stringify(categories), teamOption, vehicleType, partnerId]
+      [name, gender, language, JSON.stringify(categories), normalizedTeamOption, vehicleType, partnerId]
     );
 
     // ── Upsert partner_documents ─────────────────────────────────────────────

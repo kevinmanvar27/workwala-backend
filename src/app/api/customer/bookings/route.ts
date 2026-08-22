@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/customer/bookings?id=:bookingId — poll booking status
+// GET /api/customer/bookings — get all bookings or single booking by id
 export async function GET(req: NextRequest) {
   try {
     const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
@@ -125,50 +125,98 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const bookingId = searchParams.get('id');
-    if (!bookingId) {
-      return NextResponse.json({ error: 'Booking id required' }, { status: 400 });
+
+    // If bookingId is provided, return single booking (for polling)
+    if (bookingId) {
+      const bookings = await query<{
+        id: number;
+        status: string;
+        service_name: string;
+        duration_minutes: number;
+        price_per_hour: string;
+        total_price: string;
+        address: string;
+        partner_id: number | null;
+        partner_name: string | null;
+        partner_phone: string | null;
+      }[]>(
+        `SELECT b.id, b.status, s.name AS service_name, b.duration_minutes,
+                b.price_per_hour, b.total_price, b.address,
+                b.partner_id, p.name AS partner_name, p.phone AS partner_phone
+         FROM bookings b
+         JOIN services s ON s.id = b.service_id
+         LEFT JOIN partners p ON p.id = b.partner_id
+         WHERE b.id = ? AND b.customer_id = ?
+         LIMIT 1`,
+        [bookingId, payload.userId]
+      );
+
+      if (bookings.length === 0) {
+        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      }
+
+      const b = bookings[0];
+      return NextResponse.json({
+        success: true,
+        id: b.id,
+        status: b.status,
+        service_name: b.service_name,
+        duration_minutes: b.duration_minutes,
+        price_per_hour: parseFloat(b.price_per_hour),
+        total_price: parseFloat(b.total_price),
+        address: b.address,
+        partner_id: b.partner_id,
+        partner_name: b.partner_name ?? null,
+        partner_phone: b.partner_phone ?? null,
+      });
     }
 
+    // Otherwise, return all bookings for the customer
     const bookings = await query<{
       id: number;
       status: string;
       service_name: string;
+      service_icon_url: string | null;
+      service_bg_color: string | null;
       duration_minutes: number;
       price_per_hour: string;
       total_price: string;
       address: string;
+      booking_date: Date;
       partner_id: number | null;
       partner_name: string | null;
       partner_phone: string | null;
     }[]>(
-      `SELECT b.id, b.status, s.name AS service_name, b.duration_minutes,
+      `SELECT b.id, b.status, s.name AS service_name,
+              s.icon_url AS service_icon_url,
+              s.bg_color AS service_bg_color,
+              b.duration_minutes,
               b.price_per_hour, b.total_price, b.address,
+              b.created_at AS booking_date,
               b.partner_id, p.name AS partner_name, p.phone AS partner_phone
        FROM bookings b
        JOIN services s ON s.id = b.service_id
        LEFT JOIN partners p ON p.id = b.partner_id
-       WHERE b.id = ? AND b.customer_id = ?
-       LIMIT 1`,
-      [bookingId, payload.userId]
+       WHERE b.customer_id = ? AND b.deleted_at IS NULL
+       ORDER BY b.created_at DESC`,
+      [payload.userId]
     );
 
-    if (bookings.length === 0) {
-      return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
-    }
-
-    const b = bookings[0];
     return NextResponse.json({
       success: true,
-      id: b.id,
-      status: b.status,
-      service_name: b.service_name,
-      duration_minutes: b.duration_minutes,
-      price_per_hour: parseFloat(b.price_per_hour),
-      total_price: parseFloat(b.total_price),
-      address: b.address,
-      partner_id: b.partner_id,
-      partner_name: b.partner_name ?? null,
-      partner_phone: b.partner_phone ?? null,
+      bookings: bookings.map(b => ({
+        id: b.id,
+        service_name: b.service_name,
+        service_icon_path: b.service_icon_url,
+        service_bg_color: b.service_bg_color,
+        status: b.status,
+        partner_name: b.partner_name,
+        partner_phone: b.partner_phone,
+        booking_date: b.booking_date,
+        duration_minutes: b.duration_minutes,
+        address: b.address,
+        total_price: parseFloat(b.total_price),
+      })),
     });
   } catch (err) {
     console.error('customer bookings GET error:', err);
