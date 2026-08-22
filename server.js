@@ -10,6 +10,7 @@ const { parse } = require('url');
 const next = require('next');
 const mysql = require('mysql2/promise');
 const path = require('path');
+const fs = require('fs');
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -30,6 +31,30 @@ const DB_CONFIG = {
   password: process.env.DB_PASSWORD || '',
 };
 const DB_NAME = process.env.DB_NAME || 'linko';
+
+/**
+ * Ensure required directories exist
+ */
+function ensureDirectories() {
+  const directories = [
+    'public/uploads/customers',
+    'public/uploads/partners',
+    'public/uploads/documents',
+    'public/uploads/categories',
+  ];
+
+  console.log('📁 Checking required directories...');
+  
+  directories.forEach((dir) => {
+    const fullPath = path.join(process.cwd(), dir);
+    if (!fs.existsSync(fullPath)) {
+      fs.mkdirSync(fullPath, { recursive: true });
+      console.log(`✅ Created: ${dir}`);
+    }
+  });
+  
+  console.log('✅ All directories ready\n');
+}
 
 /**
  * Run all migrations
@@ -126,6 +151,9 @@ async function runMigrations() {
  */
 async function startServer() {
   try {
+    // Ensure directories exist
+    ensureDirectories();
+    
     // Run migrations first
     await runMigrations();
     
