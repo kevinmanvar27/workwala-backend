@@ -104,12 +104,13 @@ export async function GET(req: NextRequest) {
       language: string; categories: string; team_option: string;
       vehicle_type: string; status: string; created_at: string;
       id_front: string | null; id_back: string | null; selfie: string | null;
-      bank_document: string | null;
+      bank_document: string | null; fcm_token: string | null;
     }[]>(
       `SELECT p.id, p.phone, p.name, p.gender, p.language, p.categories,
               p.team_option, p.vehicle_type, p.status, p.created_at,
               pd.id_front, pd.id_back, pd.selfie,
-              pb.document_path AS bank_document
+              pb.document_path AS bank_document,
+              p.fcm_token
        FROM partners p
        LEFT JOIN partner_documents pd ON pd.partner_id = p.id
        LEFT JOIN partner_bank_documents pb ON pb.partner_id = p.id

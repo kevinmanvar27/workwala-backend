@@ -174,8 +174,9 @@ export async function POST(req: NextRequest) {
 
     // If the client sends the mask value back for a sensitive key, skip it —
     // this means the user didn't change it, so we must not overwrite with '••••••••'
+    // Also skip if the value is empty (user wants to keep existing value)
     for (const key of Object.keys(updates)) {
-      if (MASKED_KEYS.has(key) && updates[key] === MASK_VALUE) {
+      if (MASKED_KEYS.has(key) && (updates[key] === MASK_VALUE || updates[key].trim() === '')) {
         delete updates[key];
       }
     }

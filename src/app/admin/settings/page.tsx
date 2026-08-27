@@ -1214,14 +1214,22 @@ function SettingsContent() {
                   <span className="normal-case font-normal text-[#757575]">— Keep Secret</span>
                 </label>
                 <textarea
-                  value={get('notifications', 'fcm_private_key')}
+                  value={get('notifications', 'fcm_private_key') === '••••••••' ? '' : get('notifications', 'fcm_private_key')}
                   onChange={(e) => set('notifications', 'fcm_private_key', e.target.value)}
                   rows={6}
                   spellCheck={false}
-                  placeholder={'-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'}
+                  placeholder={get('notifications', 'fcm_private_key') === '••••••••' ? '(Already configured — paste new key to replace)' : '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'}
                   className="w-full bg-[#F9F9F9] border border-[#E0E0E0] rounded-xl px-4 py-3 text-sm font-mono text-[#2D2D2D] placeholder-[#bdbdbd] focus:outline-none focus:ring-2 focus:ring-[#4A2372] focus:border-transparent focus:bg-white transition-all resize-y leading-relaxed"
                 />
-                <p className="text-xs text-[#757575] mt-1.5">Private key from Firebase service account JSON file. Paste the full key including the <code className="font-mono bg-[#F0F0F0] px-1 rounded">-----BEGIN-----</code> and <code className="font-mono bg-[#F0F0F0] px-1 rounded">-----END-----</code> lines.</p>
+                <p className="text-xs text-[#757575] mt-1.5">
+                  {get('notifications', 'fcm_private_key') === '••••••••' ? (
+                    <>
+                      <span className="text-green-600 font-semibold">✓ Private key is configured.</span> Paste a new key here to replace it, or leave empty to keep the existing one.
+                    </>
+                  ) : (
+                    <>Private key from Firebase service account JSON file. Paste the full key including the <code className="font-mono bg-[#F0F0F0] px-1 rounded">-----BEGIN-----</code> and <code className="font-mono bg-[#F0F0F0] px-1 rounded">-----END-----</code> lines.</>
+                  )}
+                </p>
               </div>
 
               {/* Security note */}

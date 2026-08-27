@@ -63,3 +63,29 @@ export async function verifyPartnerAuth(req: NextRequest): Promise<number | null
 
   return payload.userId;
 }
+
+/**
+ * Authenticates a customer from the `Authorization: Bearer <token>` header.
+ * Also validates tokenVersion against the DB so that logout / suspension
+ * immediately invalidates previously issued tokens.
+ *
+ * @returns The customer's numeric ID on success, or `null` if unauthorized.
+ */
+export async function verifyCustomerAuth(req: NextRequest): Promise<number | null> {
+  const authHeader = req.headers.get('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return null;
+
+  const payload: JWTPayload | null = verifyToken(token);
+  if (!payload || payload.roleSlug !== 'customer') return null;
+
+  // Guard against revoked tokens by comparing tokenVersion with the DB
+  const rows = await query<{ token_version: number }[]>(
+    `SELECT token_version FROM customers WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+    [payload.userId]
+  );
+  if (rows.length === 0) return null;
+  if ((payload.tokenVersion ?? 1) !== rows[0].token_version) return null;
+
+  return payload.userId;
+}

@@ -178,6 +178,14 @@ export default function NotificationsPage() {
               <RefreshCw size={15} />
             </button>
             <Link
+              href="/admin/notifications/test"
+              className="inline-flex items-center gap-2 text-[#4A2372] text-sm font-semibold px-4 py-2.5 rounded-xl transition-all border border-[#4A2372] hover:bg-[#F3E8FF]"
+              title="Send a test notification"
+            >
+              <Send size={15} />
+              Test Notification
+            </Link>
+            <Link
               href="/admin/notifications/new"
               className="inline-flex items-center gap-2 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm hover:-translate-y-px"
               style={{ backgroundColor: 'var(--primary)' }}
