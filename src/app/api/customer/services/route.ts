@@ -78,16 +78,31 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      services: services.map((s) => ({
-        id:             s.id,
-        name:           s.cat_name   ?? s.svc_name,
-        slug:           s.cat_slug   ?? s.svc_slug,
-        price_per_hour: parseFloat(s.cat_price ?? s.svc_price),
-        bg_color:       s.cat_bg     ?? s.svc_bg,
-        border_color:   s.cat_border ?? s.svc_border,
-        icon_path:      s.cat_icon_path ?? null,
-        icon_color:     s.cat_icon_color ?? s.cat_border ?? s.svc_border,
-      })),
+      services: services.map((s) => {
+        // Construct full URL for icon if path exists
+        let iconUrl = null;
+        if (s.cat_icon_path) {
+          // If path already starts with http/https, use as-is
+          if (s.cat_icon_path.startsWith('http://') || s.cat_icon_path.startsWith('https://')) {
+            iconUrl = s.cat_icon_path;
+          } else {
+            // Otherwise, construct full URL using base URL from environment
+            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+            iconUrl = `${baseUrl}${s.cat_icon_path.startsWith('/') ? '' : '/'}${s.cat_icon_path}`;
+          }
+        }
+
+        return {
+          id:             s.id,
+          name:           s.cat_name   ?? s.svc_name,
+          slug:           s.cat_slug   ?? s.svc_slug,
+          price_per_hour: parseFloat(s.cat_price ?? s.svc_price),
+          bg_color:       s.cat_bg     ?? s.svc_bg,
+          border_color:   s.cat_border ?? s.svc_border,
+          icon_path:      iconUrl,
+          icon_color:     s.cat_icon_color ?? s.cat_border ?? s.svc_border,
+        };
+      }),
     });
   } catch (err) {
     console.error('customer services error:', err);

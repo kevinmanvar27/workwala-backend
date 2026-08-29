@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Shield, Key, FileText,
   Settings, LogOut, Menu, X, ChevronRight,
   Globe, Bell, Search, ExternalLink, Activity, BarChart3,
-  Briefcase, Tag,
+  Briefcase, Tag, Languages, Wallet,
   // notification panel icons
   CheckCheck, ArrowRight, Loader2, Check,
 } from 'lucide-react';
@@ -31,9 +31,11 @@ const NAV: NavItem[] = [
   { label: 'Roles',       href: '/admin/roles',        icon: <Shield size={16} />,          permission: 'roles.view' },
   { label: 'Permissions', href: '/admin/permissions',  icon: <Key size={16} />,             permission: 'permissions.view' },
   { label: 'Partners',      href: '/admin/partners',       icon: <Briefcase size={16} />, permission: 'users.view' },
+  { label: 'Withdrawals',   href: '/admin/withdrawals',    icon: <Wallet size={16} />,    permission: 'users.view' },
   { label: 'Categories',    href: '/admin/categories',     icon: <Tag size={16} />,       permission: 'users.view' },
   { label: 'Coupons',       href: '/admin/coupons',        icon: <Tag size={16} />,       permission: 'coupons.view' },
   { label: 'Pages',         href: '/admin/pages',         icon: <FileText size={16} />,  permission: 'pages.view' },
+  { label: 'Translations',  href: '/admin/translations',  icon: <Languages size={16} />, permission: 'settings.view' },
   { label: 'Notifications', href: '/admin/notifications', icon: <Bell size={16} />,      permission: 'notifications.view' },
   { label: 'Activity Logs', href: '/admin/activity-logs', icon: <Activity size={16} />, permission: 'activity_logs.view' },
   {
