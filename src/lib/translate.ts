@@ -199,6 +199,15 @@ export async function translateAllKeysAtOnce(
 }
 
 /**
+ * Translate a single text string to a target language.
+ * Used by the test endpoint and migration scripts.
+ */
+export async function translateText(text: string, targetLanguage: string): Promise<string> {
+  const targetLang = LANGUAGE_CODE_MAP[targetLanguage] || targetLanguage;
+  return translateViaDirect(text, targetLang);
+}
+
+/**
  * Batch insert translations into database
  */
 export async function batchInsertTranslations(

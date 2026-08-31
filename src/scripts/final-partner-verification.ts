@@ -34,7 +34,7 @@ async function finalVerification() {
   ];
 
   const languages = ['en', 'hi', 'gu', 'mr', 'pa'];
-  const languageNames = {
+  const languageNames: Record<string, string> = {
     en: 'English',
     hi: 'Hindi',
     gu: 'Gujarati',
