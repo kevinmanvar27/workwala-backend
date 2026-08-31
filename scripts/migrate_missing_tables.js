@@ -194,7 +194,18 @@ const STATEMENTS = [
     `,
   },
 
-  // ── 8. Seed default languages ────────────────────────────────────────────────
+  // ── 8. Add is_online column to partners ─────────────────────────────────────
+  {
+    label: 'Add is_online column to partners table',
+    sql: `
+      ALTER TABLE \`partners\`
+      ADD COLUMN IF NOT EXISTS \`is_online\` TINYINT(1) NOT NULL DEFAULT 0
+        COMMENT '1 = partner is currently online and accepting jobs'
+        AFTER \`last_seen_at\`
+    `,
+  },
+
+  // ── 9. Seed default languages ────────────────────────────────────────────────
   {
     label: 'Seed default languages (en, hi, gu, mr, pa)',
     sql: `
