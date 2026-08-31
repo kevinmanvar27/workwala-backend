@@ -139,10 +139,40 @@ export async function sendPushNotification(
       notification: { title, body },
       ...(data ? { data } : {}),
     });
-
     return true;
-  } catch (err) {
-    console.error('Push notification error:', err);
+  } catch (error: any) {
+    // Handle invalid/expired tokens
+    if (error?.errorInfo?.code === 'messaging/registration-token-not-registered' ||
+        error?.errorInfo?.code === 'messaging/invalid-registration-token') {
+      console.warn(`⚠️ [FCM] Invalid token detected, should be removed: ${token.substring(0, 20)}...`);
+      // Delete invalid token from database
+      await deleteInvalidToken(token);
+      return false;
+    }
+    
+    console.error('Push notification error:', error);
     return false;
+  }
+}
+
+/**
+ * Delete invalid FCM token from all token tables
+ */
+async function deleteInvalidToken(token: string): Promise<void> {
+  try {
+    const { query } = await import('./db');
+    
+    // Delete from admin tokens
+    await query('DELETE FROM user_fcm_tokens WHERE fcm_token = ?', [token]);
+    
+    // Delete from customer tokens
+    await query('DELETE FROM customer_fcm_tokens WHERE fcm_token = ?', [token]);
+    
+    // Delete from partner tokens
+    await query('DELETE FROM partner_fcm_tokens WHERE fcm_token = ?', [token]);
+    
+    console.log(`🗑️ [FCM] Deleted invalid token from database`);
+  } catch (err) {
+    console.error('❌ [FCM] Error deleting invalid token:', err);
   }
 }

@@ -4,12 +4,10 @@ import { requireMobileAuth } from '@/lib/mobileAuth';
 import type { ResultSetHeader } from 'mysql2';
 
 /**
- * DELETE /api/customer/notifications/clear-all
+ * POST /api/customer/notifications/read-all
  * Mark all unread notifications as read for the authenticated customer.
- * Uses DELETE method to match the "clear" UX pattern, but marks as read
- * rather than hard-deleting so notification history is preserved.
  */
-export async function DELETE(req: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
     const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
     if (authError) return authError;
@@ -30,12 +28,12 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: `${result.affectedRows} notification(s) marked as read`,
-      cleared_count: result.affectedRows,
+      updated_count: result.affectedRows,
     });
   } catch (error: any) {
-    console.error('[DELETE /api/customer/notifications/clear-all] Error:', error);
+    console.error('[POST /api/customer/notifications/read-all] Error:', error);
     return NextResponse.json(
-      { success: false, message: error.message || 'Failed to clear notifications' },
+      { success: false, message: error.message || 'Failed to mark all as read' },
       { status: 500 }
     );
   }

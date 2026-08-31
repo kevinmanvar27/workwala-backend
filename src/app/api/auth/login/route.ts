@@ -5,6 +5,7 @@ import { query } from '@/lib/db';
 // Import both token signers — access token is short-lived (15 min), refresh is 7 days
 import { signToken, signRefreshToken } from '@/lib/jwt';
 import { logActivity, getClientIp } from '@/lib/activityLogger';
+import { notifyAdmins } from '@/lib/notificationHelper';
 
 // ── Brute-force protection ────────────────────────────────────────────────────
 // In-process store: IP → { count, resetAt }.
@@ -153,6 +154,16 @@ export async function POST(req: NextRequest) {
       description: `Logged in as ${user.role_name || 'User'}`,
       ipAddress: ip,
     });
+
+    // Send push notification to admins about admin login
+    console.log(`[NOTIFY] Admin user logged in: ${user.email}, Role: ${user.role_name}, IP: ${ip}`);
+    await notifyAdmins(
+      'notify_login',
+      'Admin Login',
+      `${user.role_name || 'User'} logged in: ${user.email} from IP ${ip}`,
+      { type: 'admin_login', user_id: user.id.toString(), email: user.email, role: user.role_name, ip },
+      'system'
+    );
 
     return response;
   } catch (err) {

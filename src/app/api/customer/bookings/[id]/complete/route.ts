@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
+import { notifyAdmins, notifyPartner } from '@/lib/notificationHelper';
 
 // Reads Razorpay key secret from DB settings, falling back to .env.local
 async function getRazorpaySecret(): Promise<string> {
@@ -113,6 +114,16 @@ export async function POST(
           WHERE id = ?`,
         [razorpay_payment_id, bookingId]
       );
+
+      // Notify on successful UPI payment
+      console.log(`[NOTIFY] UPI payment successful: Booking ${bookingId}, Amount: ₹${totalPrice}`);
+      await notifyAdmins(
+        'notify_payment',
+        'Payment Successful',
+        `UPI payment of ₹${totalPrice} received for booking #${bookingId}`,
+        { type: 'payment_success', booking_id: bookingId.toString(), payment_method: 'UPI', amount: totalPrice.toString() },
+        'user-notifications'
+      );
     }
 
     // ── Wallet payment — deduct from customer wallet ──────────────────────────
@@ -146,6 +157,16 @@ export async function POST(
           WHERE id = ?`,
         [bookingId]
       );
+
+      // Notify on successful wallet payment
+      console.log(`[NOTIFY] Wallet payment successful: Booking ${bookingId}, Amount: ₹${totalPrice}`);
+      await notifyAdmins(
+        'notify_payment',
+        'Payment Successful',
+        `Wallet payment of ₹${totalPrice} received for booking #${bookingId}`,
+        { type: 'payment_success', booking_id: bookingId.toString(), payment_method: 'Wallet', amount: totalPrice.toString() },
+        'user-notifications'
+      );
     }
 
     // ── Cash — no online verification needed ─────────────────────────────────
@@ -158,11 +179,24 @@ export async function POST(
           WHERE id = ?`,
         [bookingId]
       );
+
+      // Notify on cash payment
+      console.log(`[NOTIFY] Cash payment confirmed: Booking ${bookingId}, Amount: ₹${totalPrice}`);
+      await notifyAdmins(
+        'notify_payment',
+        'Payment Successful',
+        `Cash payment of ₹${totalPrice} confirmed for booking #${bookingId}`,
+        { type: 'payment_success', booking_id: bookingId.toString(), payment_method: 'Cash', amount: totalPrice.toString() },
+        'user-notifications'
+      );
     }
 
     // ── Credit partner earnings ───────────────────────────────────────────────
-    // Best-effort: credit partner balance. Silently skip if partner_id is null.
-    if (booking.partner_id) {
+    // Only credit the partner's digital balance for UPI / Wallet payments.
+    // Cash is paid directly by the customer to the partner in hand — there is
+    // nothing to credit digitally. Crediting cash would inflate the balance
+    // and allow double-withdrawal.
+    if (booking.partner_id && paymentMethod !== 'Cash') {
       try {
         await query(
           `UPDATE partners SET balance = balance + ? WHERE id = ?`,
@@ -172,6 +206,35 @@ export async function POST(
         // Non-fatal — don't fail the payment confirmation
       }
     }
+
+    // Send push notifications about booking completion
+    console.log(`[NOTIFY] Booking completed: ID ${bookingId}, Payment: ${paymentMethod}, Amount: ₹${totalPrice}`);
+    
+    // Notify partner about payment received (only for digital payments)
+    if (booking.partner_id && paymentMethod !== 'Cash') {
+      await notifyPartner(
+        booking.partner_id,
+        'Payment Received',
+        `You received ₹${totalPrice} for booking #${bookingId}`,
+        { type: 'payment_received', booking_id: bookingId.toString(), amount: totalPrice.toString(), payment_method: paymentMethod },
+        'partner-notifications'
+      );
+    }
+
+    // Notify admins about booking completion
+    await notifyAdmins(
+      'notify_booking_completed',
+      'Booking Completed',
+      `Booking #${bookingId} completed with ${paymentMethod} payment - ₹${totalPrice}`,
+      { 
+        type: 'booking_completed', 
+        booking_id: bookingId.toString(), 
+        payment_method: paymentMethod,
+        amount: totalPrice.toString(),
+        partner_id: booking.partner_id?.toString() || 'N/A'
+      },
+      'user-notifications'
+    );
 
     return NextResponse.json({
       success: true,

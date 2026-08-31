@@ -4,18 +4,18 @@ import { requireMobileAuth } from '@/lib/mobileAuth';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 /**
- * GET /api/customer/notifications/:id
- * Fetch a single notification by log ID for the authenticated customer.
+ * GET /api/partner/notifications/[id]
+ * Fetch a single notification by log ID for the authenticated partner.
  */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'partner');
     if (authError) return authError;
 
-    const customerId = payload!.userId;
+    const partnerId = payload!.userId;
     const { id } = await params;
     const notificationLogId = parseInt(id, 10);
 
@@ -45,11 +45,11 @@ export async function GET(
       INNER JOIN push_notifications pn ON pnl.notification_id = pn.id
       LEFT JOIN notification_categories nc ON pn.category_id = nc.id
       WHERE pnl.id = ?
-        AND pnl.recipient_type = 'customer'
+        AND pnl.recipient_type = 'partner'
         AND pnl.recipient_id = ?
         AND pn.deleted_at IS NULL
       LIMIT 1`,
-      [notificationLogId, customerId]
+      [notificationLogId, partnerId]
     );
 
     if (rows.length === 0) {
@@ -78,7 +78,7 @@ export async function GET(
       },
     });
   } catch (error: any) {
-    console.error('[GET /api/customer/notifications/:id] Error:', error);
+    console.error('[GET /api/partner/notifications/[id]] Error:', error);
     return NextResponse.json(
       { success: false, message: error.message || 'Failed to fetch notification' },
       { status: 500 }
@@ -87,18 +87,18 @@ export async function GET(
 }
 
 /**
- * DELETE /api/customer/notifications/:id
- * Delete a notification log entry for the customer.
+ * DELETE /api/partner/notifications/[id]
+ * Delete a notification log entry for the partner.
  */
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error: authError, user: payload } = await requireMobileAuth(req, 'customer');
+    const { error: authError, user: payload } = await requireMobileAuth(req, 'partner');
     if (authError) return authError;
 
-    const customerId = payload!.userId;
+    const partnerId = payload!.userId;
     const { id } = await params;
     const notificationLogId = parseInt(id, 10);
 
@@ -112,9 +112,9 @@ export async function DELETE(
     const result = await query<ResultSetHeader>(
       `DELETE FROM push_notification_logs
        WHERE id = ?
-         AND recipient_type = 'customer'
+         AND recipient_type = 'partner'
          AND recipient_id = ?`,
-      [notificationLogId, customerId]
+      [notificationLogId, partnerId]
     );
 
     if (result.affectedRows === 0) {
@@ -129,7 +129,7 @@ export async function DELETE(
       message: 'Notification deleted',
     });
   } catch (error: any) {
-    console.error('[DELETE /api/customer/notifications/:id] Error:', error);
+    console.error('[DELETE /api/partner/notifications/[id]] Error:', error);
     return NextResponse.json(
       { success: false, message: error.message || 'Failed to delete notification' },
       { status: 500 }

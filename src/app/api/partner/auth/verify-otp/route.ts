@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { signToken } from '@/lib/jwt';
 import { hashOtp } from '@/lib/otpUtils';
+import { notifyAdmins } from '@/lib/notificationHelper';
 
 // ── Bypass OTP ────────────────────────────────────────────────────────────────
 // OTP "123456" always passes for:
@@ -42,10 +43,30 @@ export async function POST(req: NextRequest) {
         );
         partnerId = result.insertId; profileComplete = false;
         partnerStatus = 'pending'; tokenVersion = 1;
+        
+        // Notify admins about new partner registration
+        notifyAdmins(
+          'notify_new_user',
+          'New Partner Registered',
+          `A new partner registered with phone: ${phone}`,
+          { phone, partner_id: String(partnerId), type: 'partner' },
+          'partner-notifications'
+        ).catch(err => console.error('Failed to send new partner notification:', err));
       } else {
         partnerId = partners[0].id; partnerStatus = partners[0].status;
         profileComplete = !!(partners[0].name && partners[0].name.trim().length > 0);
         tokenVersion = partners[0].token_version ?? 1;
+        
+        // Notify admins about login (existing partner with complete profile)
+        if (profileComplete) {
+          notifyAdmins(
+            'notify_login',
+            'Partner Login',
+            `Partner logged in: ${phone}`,
+            { phone, partner_id: String(partnerId), type: 'partner' },
+            'partner-notifications'
+          ).catch(err => console.error('Failed to send partner login notification:', err));
+        }
       }
       const token = signToken({ userId: partnerId, email: phone, roleSlug: 'partner', roleName: 'Partner', tokenVersion });
       const bypassType = isGlobalBypass ? 'global bypass' : (isReviewBypass ? 'review account' : 'dev');
@@ -102,6 +123,7 @@ export async function POST(req: NextRequest) {
     let profileComplete: boolean;
     let partnerStatus: string;
     let tokenVersion: number;
+    let isNewPartner: boolean;
 
     if (partners.length === 0) {
       // Brand new — create the shell row (token_version defaults to 1)
@@ -113,11 +135,13 @@ export async function POST(req: NextRequest) {
       profileComplete = false;
       partnerStatus   = 'pending';
       tokenVersion    = 1;
+      isNewPartner    = true;
     } else {
       partnerId       = partners[0].id;
       partnerStatus   = partners[0].status;
       profileComplete = !!(partners[0].name && partners[0].name.trim().length > 0);
       tokenVersion    = partners[0].token_version ?? 1;
+      isNewPartner    = false;
     }
 
     // Embed tokenVersion so the server can revoke tokens by incrementing it
@@ -128,6 +152,27 @@ export async function POST(req: NextRequest) {
       roleName:     'Partner',
       tokenVersion,
     });
+
+    // Send push notifications (regular flow)
+    if (isNewPartner) {
+      console.log(`[NOTIFY] New partner registered (regular flow): ${phone}, ID: ${partnerId}`);
+      await notifyAdmins(
+        'notify_new_user',
+        'New Partner Registration',
+        `A new partner has registered with phone: ${phone}`,
+        { type: 'new_partner', partner_id: partnerId.toString(), phone },
+        'partner-notifications'
+      );
+    } else {
+      console.log(`[NOTIFY] Partner logged in (regular flow): ${phone}, ID: ${partnerId}`);
+      await notifyAdmins(
+        'notify_login',
+        'Partner Login',
+        `Partner logged in: ${phone}`,
+        { type: 'partner_login', partner_id: partnerId.toString(), phone },
+        'partner-notifications'
+      );
+    }
 
     return NextResponse.json({
       success:          true,

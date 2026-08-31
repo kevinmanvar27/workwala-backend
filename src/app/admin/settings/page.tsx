@@ -181,7 +181,7 @@ function SettingsContent() {
     finally { setExportingTable(null); }
   };
 
-  const get = (group: string, key: string) => settings[group]?.[key] || '';
+  const get = (group: string, key: string) => settings[group]?.[key] ?? '';
   const set = (group: string, key: string, value: string) => {
     setSettings((prev) => ({
       ...prev,
@@ -1140,10 +1140,15 @@ function SettingsContent() {
             <div className="space-y-3">
               <p className="text-xs font-semibold text-[#757575] uppercase tracking-widest">Notification Events</p>
               {[
-                { field: 'notify_new_user',      label: 'New User Registration',  desc: 'Notify admins when a new user registers' },
-                { field: 'notify_login',          label: 'User Login Alert',       desc: 'Notify admins on each user login' },
-                { field: 'notify_delete_request', label: 'Delete Account Request', desc: 'Notify admins when a user requests account deletion' },
-                { field: 'notify_payment',        label: 'Payment Events',         desc: 'Notify admins on successful or failed payments' },
+                { field: 'notify_new_user',         label: 'New User Registration',     desc: 'Notify admins when a new user registers' },
+                { field: 'notify_login',            label: 'User Login Alert',          desc: 'Notify admins on each user login' },
+                { field: 'notify_delete_request',   label: 'Delete Account Request',    desc: 'Notify admins when a user requests account deletion' },
+                { field: 'notify_payment',          label: 'Payment Events',            desc: 'Notify admins on successful or failed payments' },
+                { field: 'notify_new_booking',      label: 'New Booking Created',       desc: 'Notify admins when a customer creates a new booking' },
+                { field: 'notify_booking_accepted', label: 'Booking Accepted',          desc: 'Notify admins when a partner accepts a booking' },
+                { field: 'notify_booking_completed',label: 'Booking Completed',         desc: 'Notify admins when a booking is completed' },
+                { field: 'notify_withdrawal',       label: 'Withdrawal Requests',       desc: 'Notify admins when partners request withdrawals' },
+                { field: 'notify_booking_cancelled',label: 'Booking Cancelled',         desc: 'Notify admins when bookings are cancelled' },
               ].map(({ field, label, desc }) => (
                 <div key={field} className="flex items-center justify-between px-5 py-3.5 border border-[#E0E0E0] rounded-2xl bg-white hover:bg-[#F9F9F9] transition-colors">
                   <div className="min-w-0 pr-4">

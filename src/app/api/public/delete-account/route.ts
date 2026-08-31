@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query } from '@/lib/db';
 import { getClientIp } from '@/lib/activityLogger';
+import { notifyAdmins } from '@/lib/notificationHelper';
 
 export async function POST(req: NextRequest) {
   try {
@@ -59,6 +60,16 @@ export async function POST(req: NextRequest) {
     await query(
       `INSERT INTO delete_account_requests (email, reason, status, ip_address) VALUES (?, ?, 'pending', ?)`,
       [email, reason || null, ip]
+    );
+
+    // Send push notification to admins about delete request
+    console.log(`[NOTIFY] Account deletion request: ${email}, User: ${user.name}, Reason: ${reason || 'Not provided'}`);
+    await notifyAdmins(
+      'notify_delete_request',
+      'Account Deletion Request',
+      `User ${user.name} (${email}) has requested account deletion`,
+      { type: 'delete_request', user_id: user.id.toString(), email, name: user.name, reason: reason || 'Not provided' },
+      'alerts'
     );
 
     return NextResponse.json({

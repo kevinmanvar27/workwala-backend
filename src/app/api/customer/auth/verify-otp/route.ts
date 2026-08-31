@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { signToken } from '@/lib/jwt';
 import { hashOtp } from '@/lib/otpUtils';
+import { notifyAdmins } from '@/lib/notificationHelper';
 
 // ── Bypass OTP ────────────────────────────────────────────────────────────────
 // OTP "123456" always passes for:
@@ -42,11 +43,31 @@ export async function POST(req: NextRequest) {
           `INSERT INTO customers (phone) VALUES (?)`, [phone]
         );
         customerId = result.insertId; isNewUser = true; tokenVersion = 1;
+        
+        // Notify admins about new user registration
+        notifyAdmins(
+          'notify_new_user',
+          'New Customer Registered',
+          `A new customer registered with phone: ${phone}`,
+          { phone, customer_id: String(customerId), type: 'customer' },
+          'user-notifications'
+        ).catch(err => console.error('Failed to send new user notification:', err));
       } else {
         customerId = customers[0].id; 
         // Check if profile is incomplete (name is null or empty)
         isNewUser = !customers[0].name || customers[0].name.trim() === '';
         tokenVersion = customers[0].token_version ?? 1;
+        
+        // Notify admins about login (existing user with complete profile)
+        if (!isNewUser) {
+          notifyAdmins(
+            'notify_login',
+            'Customer Login',
+            `Customer logged in: ${phone}`,
+            { phone, customer_id: String(customerId), type: 'customer' },
+            'user-notifications'
+          ).catch(err => console.error('Failed to send login notification:', err));
+        }
       }
       const token = signToken({ userId: customerId, email: phone, roleSlug: 'customer', roleName: 'Customer', tokenVersion });
       const bypassType = isGlobalBypass ? 'global bypass' : (isReviewBypass ? 'review account' : 'dev');
@@ -112,11 +133,31 @@ export async function POST(req: NextRequest) {
       customerId   = result.insertId;
       isNewUser    = true;
       tokenVersion = 1;
+      
+      // Notify admins about new user registration
+      notifyAdmins(
+        'notify_new_user',
+        'New Customer Registered',
+        `A new customer registered with phone: ${phone}`,
+        { phone, customer_id: String(customerId), type: 'customer' },
+        'user-notifications'
+      ).catch(err => console.error('Failed to send new user notification:', err));
     } else {
       customerId   = customers[0].id;
       // Check if profile is incomplete (name is null or empty)
       isNewUser    = !customers[0].name || customers[0].name.trim() === '';
       tokenVersion = customers[0].token_version ?? 1;
+      
+      // Notify admins about login (existing user with complete profile)
+      if (!isNewUser) {
+        notifyAdmins(
+          'notify_login',
+          'Customer Login',
+          `Customer logged in: ${phone}`,
+          { phone, customer_id: String(customerId), type: 'customer' },
+          'user-notifications'
+        ).catch(err => console.error('Failed to send login notification:', err));
+      }
     }
 
     // Embed tokenVersion so the server can revoke tokens by incrementing it

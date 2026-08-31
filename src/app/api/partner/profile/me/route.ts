@@ -53,12 +53,18 @@ export async function GET(req: NextRequest) {
     const bankDocPath = partner.bank_doc ?? null;
 
     // ── Today's earnings & jobs — sourced directly from the bookings table ──
-    // Counts completed bookings for this partner where completed_at is today.
-    // This is the single source of truth since there is no partner_earnings table.
-    const [earningsRow] = await query<{ today_earnings: number; today_jobs: number }[]>(
+    // Digital-only (UPI / wallet / card / online) — these go to the partner's
+    // withdrawable balance. Cash payments are collected in hand and must NOT
+    // appear in the digital balance or today_earnings figure.
+    const [earningsRow] = await query<{
+      today_earnings: number;
+      today_cash_earnings: number;
+      today_jobs: number;
+    }[]>(
       `SELECT
-         COALESCE(SUM(total_price), 0) AS today_earnings,
-         COUNT(*)                       AS today_jobs
+         COALESCE(SUM(CASE WHEN LOWER(COALESCE(payment_method,'')) != 'cash' THEN total_price ELSE 0 END), 0) AS today_earnings,
+         COALESCE(SUM(CASE WHEN LOWER(COALESCE(payment_method,'')) =  'cash' THEN total_price ELSE 0 END), 0) AS today_cash_earnings,
+         COUNT(*)                                                                                              AS today_jobs
        FROM bookings
        WHERE partner_id   = ?
          AND status       = 'completed'
@@ -67,8 +73,9 @@ export async function GET(req: NextRequest) {
       [partner.id]
     );
 
-    const todayEarnings = Number(earningsRow?.today_earnings ?? 0);
-    const todayJobs     = Number(earningsRow?.today_jobs     ?? 0);
+    const todayEarnings     = Number(earningsRow?.today_earnings      ?? 0);
+    const todayCashEarnings = Number(earningsRow?.today_cash_earnings  ?? 0);
+    const todayJobs         = Number(earningsRow?.today_jobs           ?? 0);
 
     // ── Total (all-time) earnings — used as the wallet balance ──────────────
     // The partners.balance column is credited per booking in the complete route,
@@ -88,8 +95,9 @@ export async function GET(req: NextRequest) {
       vehicle_type:    partner.vehicle_type ?? '',
       rating:          partner.rating  ?? 0,
       balance,
-      today_earnings:  todayEarnings,
-      today_jobs:      todayJobs,
+      today_earnings:      todayEarnings,
+      today_cash_earnings: todayCashEarnings,
+      today_jobs:          todayJobs,
       selfie_url:      selfiePath,
       id_front_url:    idFrontPath,
       id_back_url:     idBackPath,

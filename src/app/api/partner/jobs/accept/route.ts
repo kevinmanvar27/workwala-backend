@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
 import { randomInt, createHmac } from 'crypto';
+import { notifyAdmins, notifyCustomer } from '@/lib/notificationHelper';
 
 // Parses a "lat,lng" address string into {lat, lng} or null.
 function parseCoordsFromAddress(address: string): { lat: number; lng: number } | null {
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
     // Fetch full booking details to return to the partner app
     const bookings = await query<Array<{
       id: number;
+      customer_id: number;
       service_name: string;
       duration_minutes: number;
       price_per_hour: string;
@@ -79,6 +81,7 @@ export async function POST(req: NextRequest) {
       customer_phone: string;
     }>>(
       `SELECT b.id,
+              b.customer_id,
               COALESCE(cat.name, s.name)        AS service_name,
               b.duration_minutes,
               b.price_per_hour,
@@ -113,6 +116,34 @@ export async function POST(req: NextRequest) {
         resolvedLng = parsed.lng;
       }
     }
+
+    // Send push notifications about booking acceptance
+    console.log(`[NOTIFY] Booking accepted: ID ${booking_id}, Partner: ${payload.userId}, Customer: ${b.customer_phone}`);
+    
+    // Notify customer that partner has been found
+    await notifyCustomer(
+      b.customer_id,
+      'Partner Found!',
+      `A partner has been assigned for your ${b.service_name} service`,
+      { type: 'partner_found', booking_id: booking_id.toString(), service_name: b.service_name },
+      'user-notifications'
+    );
+
+    // Notify admins about booking acceptance
+    await notifyAdmins(
+      'notify_booking_accepted',
+      'Booking Accepted',
+      `Booking #${booking_id} accepted by partner for ${b.service_name} - ₹${b.total_price}`,
+      { 
+        type: 'booking_accepted', 
+        booking_id: booking_id.toString(), 
+        partner_id: payload.userId.toString(),
+        service_name: b.service_name,
+        total_price: b.total_price,
+        customer_phone: b.customer_phone
+      },
+      'partner-notifications'
+    );
 
     return NextResponse.json({
       success:          true,

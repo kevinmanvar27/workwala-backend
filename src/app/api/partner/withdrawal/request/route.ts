@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
+import { notifyAdmins } from '@/lib/notificationHelper';
 
 // POST /api/partner/withdrawal/request
 // Partner submits a withdrawal request
@@ -64,6 +65,24 @@ export async function POST(req: NextRequest) {
       `INSERT INTO withdrawal_requests (partner_id, amount, partner_notes, status)
        VALUES (?, ?, ?, 'pending')`,
       [payload.userId, amount, partnerNotes]
+    );
+
+    // Send push notification to admins about withdrawal request
+    console.log(`[NOTIFY] Withdrawal request: ID ${result.insertId}, Partner: ${partner.name} (${partner.phone}), Amount: ₹${amount}`);
+    await notifyAdmins(
+      'notify_withdrawal',
+      'Withdrawal Request',
+      `${partner.name} requested withdrawal of ₹${amount}`,
+      { 
+        type: 'withdrawal_request', 
+        request_id: result.insertId.toString(), 
+        partner_id: payload.userId.toString(),
+        partner_name: partner.name,
+        partner_phone: partner.phone,
+        amount: amount.toString(),
+        notes: partnerNotes || 'None'
+      },
+      'partner-notifications'
     );
 
     return NextResponse.json({ 

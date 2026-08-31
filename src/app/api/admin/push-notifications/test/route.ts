@@ -46,12 +46,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get recipient's FCM token
-    const tableName = recipient_type === 'partner' ? 'partners' : 'customers';
-    const recipients = await query<{ id: number; name: string; fcm_token: string | null }[]>(
-      `SELECT id, COALESCE(name, phone) as name, fcm_token 
-       FROM ${tableName} 
-       WHERE id = ? AND deleted_at IS NULL`,
+    // Get recipient's FCM tokens from new token tables
+    const tokenTable = recipient_type === 'partner' ? 'partner_fcm_tokens' : 'customer_fcm_tokens';
+    const userTable = recipient_type === 'partner' ? 'partners' : 'customers';
+    const idColumn = recipient_type === 'partner' ? 'partner_id' : 'customer_id';
+    
+    // First check if recipient exists
+    const recipients = await query<{ id: number; name: string | null; phone: string }[]>(
+      `SELECT id, name, phone FROM ${userTable} WHERE id = ? AND deleted_at IS NULL`,
       [recipient_id]
     );
 
@@ -63,34 +65,56 @@ export async function POST(req: NextRequest) {
     }
 
     const recipient = recipients[0];
+    const recipientName = recipient.name || recipient.phone;
 
-    if (!recipient.fcm_token || recipient.fcm_token.trim() === '') {
+    // Get all active FCM tokens for this recipient
+    const tokens = await query<{ fcm_token: string; device_type: string }[]>(
+      `SELECT fcm_token, device_type FROM ${tokenTable} 
+       WHERE ${idColumn} = ? AND deleted_at IS NULL`,
+      [recipient_id]
+    );
+
+    if (tokens.length === 0) {
       return NextResponse.json(
         { 
-          error: `${recipient_type} "${recipient.name}" has not registered an FCM token yet. They need to open the app to register.`,
-          recipient_name: recipient.name,
+          error: `${recipient_type} "${recipientName}" has not registered any FCM tokens yet. They need to open the app to register.`,
+          recipient_name: recipientName,
         },
         { status: 400 }
       );
     }
 
-    // Send test notification
-    const success = await sendPushNotification(
-      recipient.fcm_token,
-      title,
-      messageBody,
-      { test: 'true', sent_by: actor!.email }
-    );
+    // Send test notification to all devices
+    let successCount = 0;
+    let failCount = 0;
 
-    if (success) {
+    for (const token of tokens) {
+      const success = await sendPushNotification(
+        token.fcm_token,
+        title,
+        messageBody,
+        { test: 'true', sent_by: actor!.email, device_type: token.device_type }
+      );
+      
+      if (success) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    if (successCount > 0) {
       return NextResponse.json({
         success: true,
-        message: `Test notification sent to ${recipient_type} "${recipient.name}"`,
-        recipient_name: recipient.name,
+        message: `Test notification sent to ${recipient_type} "${recipientName}" (${successCount}/${tokens.length} devices)`,
+        recipient_name: recipientName,
+        devices_sent: successCount,
+        devices_failed: failCount,
+        total_devices: tokens.length,
       });
     } else {
       return NextResponse.json(
-        { error: 'Failed to send notification. Check Firebase credentials and token validity.' },
+        { error: 'Failed to send notification to any device. Check Firebase credentials and token validity.' },
         { status: 500 }
       );
     }

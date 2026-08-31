@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
+import { notifyAdmins } from '@/lib/notificationHelper';
 
 // POST /api/customer/bookings — create a new booking
 export async function POST(req: NextRequest) {
@@ -99,6 +100,24 @@ export async function POST(req: NextRequest) {
          (customer_id, service_id, hours, duration_minutes, price_per_hour, total_price, address, lat, lng, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'finding')`,
       [payload.userId, service_id, hours, duration_minutes, pricePerHour, totalPrice, address, bookingLat, bookingLng]
+    );
+
+    // Send push notification to admins about new booking
+    console.log(`[NOTIFY] New booking created: ID ${result.insertId}, Customer: ${payload.userId}, Service: ${service.name}, Price: ₹${totalPrice}`);
+    await notifyAdmins(
+      'notify_new_booking',
+      'New Booking',
+      `New booking for ${service.name} - ₹${totalPrice} (${duration_minutes} min)`,
+      { 
+        type: 'new_booking', 
+        booking_id: result.insertId.toString(), 
+        customer_id: payload.userId.toString(),
+        service_name: service.name,
+        total_price: totalPrice.toString(),
+        duration_minutes: duration_minutes.toString(),
+        address
+      },
+      'user-notifications'
     );
 
     return NextResponse.json({

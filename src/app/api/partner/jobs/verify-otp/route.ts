@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
 import { createHmac } from 'crypto';
+import { notifyCustomer } from '@/lib/notificationHelper';
 
 // Hash the submitted OTP before comparing against the stored hash.
 function hashBookingOtp(otp: string): string {
@@ -90,11 +91,23 @@ export async function POST(req: NextRequest) {
     );
 
     // Fetch the exact started_at time
-    const startedRow = await query<Array<{ started_at: Date }>>(
-      `SELECT started_at FROM bookings WHERE id = ?`,
+    const startedRow = await query<Array<{ started_at: Date; customer_id: number }>>(
+      `SELECT started_at, customer_id FROM bookings WHERE id = ?`,
       [booking_id]
     );
     const started_at = startedRow[0]?.started_at?.toISOString() || new Date().toISOString();
+    const customerId = startedRow[0]?.customer_id;
+
+    // Notify customer that the job has started
+    if (customerId) {
+      await notifyCustomer(
+        customerId,
+        'Service Started',
+        `Your ${booking.service_name} service has started. Sit back and relax!`,
+        { type: 'job_started', booking_id: booking_id.toString(), service_name: booking.service_name },
+        'user-notifications'
+      );
+    }
 
     // Return full booking details so the app can pass them through the screen chain
     return NextResponse.json({

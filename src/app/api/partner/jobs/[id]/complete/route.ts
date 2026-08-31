@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { verifyPartnerAuth } from '@/lib/auth';
+import { notifyCustomer } from '@/lib/notificationHelper';
 
 // Transitions job status: in_progress → payment_pending
 // Called by Partner when they mark the job as completed.
@@ -57,6 +58,26 @@ export async function POST(
        WHERE id = ?`,
       [jobId]
     );
+
+    // Fetch customer_id to send notification
+    const customerRows = await query<Array<{ customer_id: number }>>(
+      `SELECT customer_id FROM bookings WHERE id = ?`,
+      [jobId]
+    );
+
+    if (customerRows.length > 0) {
+      const customerId = customerRows[0].customer_id;
+      console.log(`[NOTIFY] Job marked complete: ID ${jobId}, Customer: ${customerId}`);
+      
+      // Notify customer that work is complete and payment is pending
+      await notifyCustomer(
+        customerId,
+        'Service Completed',
+        'Your service has been completed. Please proceed with payment.',
+        { type: 'job_complete', booking_id: jobId.toString() },
+        'user-notifications'
+      );
+    }
 
     return NextResponse.json({
       success: true,

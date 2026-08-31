@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/apiAuth';
 import { query } from '@/lib/db';
 import { logActivity, getClientIp } from '@/lib/activityLogger';
+import { notifyPartner } from '@/lib/notificationHelper';
 
 // GET /api/admin/withdrawals — list withdrawal requests with filters
 export async function GET(req: NextRequest) {
@@ -260,6 +261,44 @@ export async function PATCH(req: NextRequest) {
       description: admin_notes || `Withdrawal request ${action}ed`,
       ipAddress: getClientIp(req),
     });
+
+    // Send push notification to partner about withdrawal status
+    console.log(`[NOTIFY] Withdrawal ${action}ed: ID ${id}, Partner: ${withdrawal.partner_name} (${withdrawal.partner_phone}), Amount: ₹${withdrawal.amount}`);
+    
+    let notificationTitle = '';
+    let notificationBody = '';
+    
+    switch (action) {
+      case 'approve':
+        notificationTitle = 'Withdrawal Approved';
+        notificationBody = `Your withdrawal request of ₹${withdrawal.amount} has been approved`;
+        break;
+      case 'reject':
+        notificationTitle = 'Withdrawal Rejected';
+        notificationBody = `Your withdrawal request of ₹${withdrawal.amount} has been rejected`;
+        if (admin_notes) notificationBody += `: ${admin_notes}`;
+        break;
+      case 'complete':
+        notificationTitle = 'Withdrawal Completed';
+        notificationBody = `₹${withdrawal.amount} has been transferred to your account`;
+        if (transaction_id) notificationBody += ` (Txn: ${transaction_id})`;
+        break;
+    }
+
+    await notifyPartner(
+      withdrawal.partner_id,
+      notificationTitle,
+      notificationBody,
+      { 
+        type: `withdrawal_${action}ed`, 
+        request_id: id.toString(), 
+        amount: withdrawal.amount.toString(),
+        status: newStatus,
+        admin_notes: admin_notes || '',
+        transaction_id: transaction_id || ''
+      },
+      'partner-notifications'
+    );
 
     return NextResponse.json({ 
       success: true, 

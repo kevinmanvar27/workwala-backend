@@ -31,6 +31,7 @@ const NAV: NavItem[] = [
   { label: 'Roles',       href: '/admin/roles',        icon: <Shield size={16} />,          permission: 'roles.view' },
   { label: 'Permissions', href: '/admin/permissions',  icon: <Key size={16} />,             permission: 'permissions.view' },
   { label: 'Partners',      href: '/admin/partners',       icon: <Briefcase size={16} />, permission: 'users.view' },
+  { label: 'Customers',     href: '/admin/customers',      icon: <Users size={16} />,     permission: 'users.view' },
   { label: 'Withdrawals',   href: '/admin/withdrawals',    icon: <Wallet size={16} />,    permission: 'users.view' },
   { label: 'Categories',    href: '/admin/categories',     icon: <Tag size={16} />,       permission: 'users.view' },
   { label: 'Coupons',       href: '/admin/coupons',        icon: <Tag size={16} />,       permission: 'coupons.view' },
