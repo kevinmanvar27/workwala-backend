@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
 import { randomInt, createHmac } from 'crypto';
-import { notifyAdmins, notifyCustomer } from '@/lib/notificationHelper';
+import { notifyAdmins, notifyCustomer, notifyPartner } from '@/lib/notificationHelper';
 
 // Parses a "lat,lng" address string into {lat, lng} or null.
 function parseCoordsFromAddress(address: string): { lat: number; lng: number } | null {
@@ -127,6 +127,15 @@ export async function POST(req: NextRequest) {
       `A partner has been assigned for your ${b.service_name} service`,
       { type: 'partner_found', booking_id: booking_id.toString(), service_name: b.service_name },
       'user-notifications'
+    );
+
+    // Notify partner that they successfully accepted the job
+    await notifyPartner(
+      payload.userId,
+      'Job Accepted!',
+      `You have successfully accepted the ${b.service_name} job - ₹${b.total_price}`,
+      { type: 'job_accepted', booking_id: booking_id.toString(), service_name: b.service_name, total_price: b.total_price },
+      'partner-notifications'
     );
 
     // Notify admins about booking acceptance

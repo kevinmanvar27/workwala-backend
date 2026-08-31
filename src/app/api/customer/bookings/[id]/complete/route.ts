@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
-import { notifyAdmins, notifyPartner } from '@/lib/notificationHelper';
+import { notifyAdmins, notifyPartner, notifyCustomer } from '@/lib/notificationHelper';
 
 // Reads Razorpay key secret from DB settings, falling back to .env.local
 async function getRazorpaySecret(): Promise<string> {
@@ -210,12 +210,21 @@ export async function POST(
     // Send push notifications about booking completion
     console.log(`[NOTIFY] Booking completed: ID ${bookingId}, Payment: ${paymentMethod}, Amount: ₹${totalPrice}`);
     
-    // Notify partner about payment received (only for digital payments)
-    if (booking.partner_id && paymentMethod !== 'Cash') {
+    // Notify customer that payment was confirmed
+    await notifyCustomer(
+      payload.userId,
+      'Payment Confirmed',
+      `Your payment of ₹${totalPrice} for booking #${bookingId} has been confirmed. Thank you!`,
+      { type: 'payment_confirmed', booking_id: bookingId.toString(), amount: totalPrice.toString(), payment_method: paymentMethod },
+      'user-notifications'
+    );
+
+    // Notify partner about payment received (all payment methods)
+    if (booking.partner_id) {
       await notifyPartner(
         booking.partner_id,
         'Payment Received',
-        `You received ₹${totalPrice} for booking #${bookingId}`,
+        `₹${totalPrice} ${paymentMethod === 'Cash' ? 'cash' : ''} payment received for booking #${bookingId}`.trim(),
         { type: 'payment_received', booking_id: bookingId.toString(), amount: totalPrice.toString(), payment_method: paymentMethod },
         'partner-notifications'
       );

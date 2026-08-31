@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
 import { createHmac } from 'crypto';
-import { notifyCustomer } from '@/lib/notificationHelper';
+import { notifyCustomer, notifyPartner } from '@/lib/notificationHelper';
 
 // Hash the submitted OTP before comparing against the stored hash.
 function hashBookingOtp(otp: string): string {
@@ -108,6 +108,15 @@ export async function POST(req: NextRequest) {
         'user-notifications'
       );
     }
+
+    // Notify partner that OTP was verified and job is now in progress
+    await notifyPartner(
+      payload.userId,
+      'Service Started',
+      `OTP verified. Booking #${booking_id} (${booking.service_name}) is now in progress.`,
+      { type: 'job_started', booking_id: booking_id.toString(), service_name: booking.service_name },
+      'partner-notifications'
+    );
 
     // Return full booking details so the app can pass them through the screen chain
     return NextResponse.json({

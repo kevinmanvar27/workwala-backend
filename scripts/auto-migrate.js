@@ -47,6 +47,11 @@ const MIGRATIONS = [
     name: 'link_services_categories',
     file: 'migrate_link_services_categories.js',
     description: 'Link services to categories for icon display'
+  },
+  {
+    name: 'missing_tables_live',
+    file: 'migrate_missing_tables.js',
+    description: 'Create languages, translations, withdrawal_requests and FCM token tables missing on live server'
   }
 ];
 

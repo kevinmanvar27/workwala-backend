@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
-import { notifyAdmins } from '@/lib/notificationHelper';
+import { notifyAdmins, notifyAllPartners } from '@/lib/notificationHelper';
 
 // POST /api/customer/bookings — create a new booking
 export async function POST(req: NextRequest) {
@@ -118,6 +118,20 @@ export async function POST(req: NextRequest) {
         address
       },
       'user-notifications'
+    );
+
+    // Notify all available partners about the new job
+    await notifyAllPartners(
+      'New Job Available',
+      `New ${service.name} booking near you - ₹${totalPrice} (${duration_minutes} min)`,
+      {
+        type: 'new_booking',
+        booking_id: result.insertId.toString(),
+        service_name: service.name,
+        total_price: totalPrice.toString(),
+        duration_minutes: duration_minutes.toString(),
+      },
+      'partner-notifications'
     );
 
     return NextResponse.json({

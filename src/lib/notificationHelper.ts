@@ -36,8 +36,8 @@ async function createNotificationRecord(
 
 /**
  * Writes a log row in push_notification_logs.
- * Called both when FCM succeeds/fails AND when there is no FCM token at all
- * (so the notification always appears in the in-app inbox).
+ * Always called — even with no FCM token — so the notification appears in the
+ * in-app inbox regardless of whether a device push was sent.
  */
 async function writeLog(
   notificationId: number,
@@ -74,15 +74,9 @@ async function writeLog(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Sends a push notification to all admin users.
- * Always stores the notification + per-admin log so it appears in the inbox,
+ * Sends a push notification to all admin / super-admin users.
+ * Always writes a push_notification_logs row so it appears in the admin inbox,
  * even when no FCM token is registered.
- *
- * @param event        - Setting key, e.g. 'notify_new_booking'
- * @param title        - Notification title
- * @param body         - Notification body
- * @param data         - Optional FCM data payload
- * @param categorySlug - Optional category slug, e.g. 'booking'
  */
 export async function notifyAdmins(
   event: string,
@@ -95,7 +89,6 @@ export async function notifyAdmins(
     console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`🔔 [NOTIFY ADMINS] Event: ${event} | Title: ${title}`);
 
-    // 1. Check master push toggle
     const pushEnabled = await isPushEnabled();
     if (!pushEnabled) {
       console.log(`⏭️  [NOTIFY ADMINS] Push disabled globally — skipping ${event}`);
@@ -103,7 +96,6 @@ export async function notifyAdmins(
       return;
     }
 
-    // 2. Check per-event toggle
     const eventEnabled = await isNotifyEventEnabled(event);
     if (!eventEnabled) {
       console.log(`⏭️  [NOTIFY ADMINS] Event '${event}' disabled — skipping`);
@@ -111,7 +103,6 @@ export async function notifyAdmins(
       return;
     }
 
-    // 3. Create the notification record (inbox entry)
     const notificationId = await createNotificationRecord(title, body, categorySlug);
     if (!notificationId) {
       console.log(`⚠️  [NOTIFY ADMINS] Could not create notification record for '${event}'`);
@@ -120,7 +111,6 @@ export async function notifyAdmins(
     }
     console.log(`📝 [NOTIFY ADMINS] Created notification record #${notificationId}`);
 
-    // 4. Fetch all active admins (with or without FCM tokens)
     const admins = await query<{ user_id: number; name: string }[]>(
       `SELECT DISTINCT u.id AS user_id, u.name
        FROM users u
@@ -139,7 +129,6 @@ export async function notifyAdmins(
     console.log(`👥 [NOTIFY ADMINS] Notifying ${admins.length} admin(s)`);
 
     for (const admin of admins) {
-      // Get FCM tokens for this admin (may be empty)
       const tokens = await query<{ fcm_token: string }[]>(
         `SELECT fcm_token FROM user_fcm_tokens
          WHERE user_id = ? AND deleted_at IS NULL`,
@@ -147,7 +136,6 @@ export async function notifyAdmins(
       );
 
       if (tokens.length === 0) {
-        // No device registered — still write an inbox log so it shows in the app
         await writeLog(notificationId, 'user', admin.user_id, admin.name, null, 'pending', 'No FCM token registered');
         console.log(`   📭 ${admin.name} — no FCM token, inbox log written`);
         continue;
@@ -174,14 +162,8 @@ export async function notifyAdmins(
 
 /**
  * Sends a push notification to a specific customer.
- * Always stores the notification + log so it appears in the inbox,
- * even when no FCM token is registered.
- *
- * @param customerId   - Customer ID
- * @param title        - Notification title
- * @param body         - Notification body
- * @param data         - Optional FCM data payload
- * @param categorySlug - Optional category slug
+ * Always writes a push_notification_logs row so it appears in the customer
+ * inbox, even when no FCM token is registered.
  */
 export async function notifyCustomer(
   customerId: number,
@@ -194,7 +176,6 @@ export async function notifyCustomer(
     console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`🔔 [NOTIFY CUSTOMER] Customer #${customerId} | Title: ${title}`);
 
-    // Check master push toggle
     const pushEnabled = await isPushEnabled();
     if (!pushEnabled) {
       console.log(`⏭️  [NOTIFY CUSTOMER] Push disabled globally — skipping`);
@@ -202,7 +183,6 @@ export async function notifyCustomer(
       return;
     }
 
-    // Fetch customer info
     const customers = await query<{ name: string | null; phone: string }[]>(
       `SELECT name, phone FROM customers WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
       [customerId]
@@ -214,7 +194,6 @@ export async function notifyCustomer(
     }
     const customerName = customers[0].name || customers[0].phone;
 
-    // Create notification record
     const notificationId = await createNotificationRecord(title, body, categorySlug);
     if (!notificationId) {
       console.log(`⚠️  [NOTIFY CUSTOMER] Could not create notification record`);
@@ -223,7 +202,6 @@ export async function notifyCustomer(
     }
     console.log(`📝 [NOTIFY CUSTOMER] Created notification record #${notificationId}`);
 
-    // Get FCM tokens
     const tokens = await query<{ fcm_token: string }[]>(
       `SELECT fcm_token FROM customer_fcm_tokens
        WHERE customer_id = ? AND deleted_at IS NULL`,
@@ -231,7 +209,6 @@ export async function notifyCustomer(
     );
 
     if (tokens.length === 0) {
-      // No device — still write inbox log
       await writeLog(notificationId, 'customer', customerId, customerName, null, 'pending', 'No FCM token registered');
       console.log(`   📭 ${customerName} — no FCM token, inbox log written`);
       console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
@@ -258,14 +235,8 @@ export async function notifyCustomer(
 
 /**
  * Sends a push notification to a specific partner.
- * Always stores the notification + log so it appears in the inbox,
- * even when no FCM token is registered.
- *
- * @param partnerId    - Partner ID
- * @param title        - Notification title
- * @param body         - Notification body
- * @param data         - Optional FCM data payload
- * @param categorySlug - Optional category slug
+ * Always writes a push_notification_logs row so it appears in the partner
+ * inbox, even when no FCM token is registered.
  */
 export async function notifyPartner(
   partnerId: number,
@@ -278,7 +249,6 @@ export async function notifyPartner(
     console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`🔔 [NOTIFY PARTNER] Partner #${partnerId} | Title: ${title}`);
 
-    // Check master push toggle
     const pushEnabled = await isPushEnabled();
     if (!pushEnabled) {
       console.log(`⏭️  [NOTIFY PARTNER] Push disabled globally — skipping`);
@@ -286,7 +256,6 @@ export async function notifyPartner(
       return;
     }
 
-    // Fetch partner info
     const partners = await query<{ name: string | null; phone: string }[]>(
       `SELECT name, phone FROM partners WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
       [partnerId]
@@ -298,7 +267,6 @@ export async function notifyPartner(
     }
     const partnerName = partners[0].name || partners[0].phone;
 
-    // Create notification record
     const notificationId = await createNotificationRecord(title, body, categorySlug);
     if (!notificationId) {
       console.log(`⚠️  [NOTIFY PARTNER] Could not create notification record`);
@@ -307,7 +275,6 @@ export async function notifyPartner(
     }
     console.log(`📝 [NOTIFY PARTNER] Created notification record #${notificationId}`);
 
-    // Get FCM tokens
     const tokens = await query<{ fcm_token: string }[]>(
       `SELECT fcm_token FROM partner_fcm_tokens
        WHERE partner_id = ? AND deleted_at IS NULL`,
@@ -315,7 +282,6 @@ export async function notifyPartner(
     );
 
     if (tokens.length === 0) {
-      // No device — still write inbox log
       await writeLog(notificationId, 'partner', partnerId, partnerName, null, 'pending', 'No FCM token registered');
       console.log(`   📭 ${partnerName} — no FCM token, inbox log written`);
       console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
@@ -332,6 +298,85 @@ export async function notifyPartner(
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
   } catch (err) {
     console.error(`❌ [NOTIFY PARTNER] Unhandled error for partner #${partnerId}:`, err);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// notifyAllPartners
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Broadcasts a push notification to ALL active, approved partners.
+ * Used when a new booking is created so every available partner sees the job.
+ */
+export async function notifyAllPartners(
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+  categorySlug?: string
+): Promise<void> {
+  try {
+    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🔔 [NOTIFY ALL PARTNERS] Title: ${title}`);
+
+    const pushEnabled = await isPushEnabled();
+    if (!pushEnabled) {
+      console.log(`⏭️  [NOTIFY ALL PARTNERS] Push disabled globally — skipping`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+      return;
+    }
+
+    // Fetch all active/approved partners
+    const partners = await query<{ id: number; name: string | null; phone: string }[]>(
+      `SELECT id, name, phone FROM partners
+       WHERE status IN ('active', 'approved')
+         AND deleted_at IS NULL`
+    );
+
+    if (partners.length === 0) {
+      console.log(`⚠️  [NOTIFY ALL PARTNERS] No active partners found`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+      return;
+    }
+
+    console.log(`👥 [NOTIFY ALL PARTNERS] Notifying ${partners.length} partner(s)`);
+
+    // Create ONE shared notification record for all partners
+    const notificationId = await createNotificationRecord(title, body, categorySlug);
+    if (!notificationId) {
+      console.log(`⚠️  [NOTIFY ALL PARTNERS] Could not create notification record`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+      return;
+    }
+    console.log(`📝 [NOTIFY ALL PARTNERS] Created notification record #${notificationId}`);
+
+    for (const partner of partners) {
+      const partnerName = partner.name || partner.phone;
+
+      const tokens = await query<{ fcm_token: string }[]>(
+        `SELECT fcm_token FROM partner_fcm_tokens
+         WHERE partner_id = ? AND deleted_at IS NULL`,
+        [partner.id]
+      );
+
+      if (tokens.length === 0) {
+        await writeLog(notificationId, 'partner', partner.id, partnerName, null, 'pending', 'No FCM token registered');
+        console.log(`   📭 ${partnerName} — no FCM token, inbox log written`);
+        continue;
+      }
+
+      for (const { fcm_token } of tokens) {
+        const ok = await sendPushNotification(fcm_token, title, body, data);
+        await writeLog(notificationId, 'partner', partner.id, partnerName, fcm_token, ok ? 'sent' : 'failed', ok ? undefined : 'FCM delivery failed');
+        console.log(`   ${ok ? '✅' : '❌'} ${partnerName} — FCM ${ok ? 'sent' : 'failed'}`);
+      }
+    }
+
+    console.log(`✅ [NOTIFY ALL PARTNERS] Done`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+  } catch (err) {
+    console.error(`❌ [NOTIFY ALL PARTNERS] Unhandled error:`, err);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
   }
 }
