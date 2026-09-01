@@ -16,8 +16,15 @@ function parseCoordsFromAddress(address: string): { lat: number; lng: number } |
 // one of the partner's registered service categories.
 export async function GET(req: NextRequest) {
   try {
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 [PENDING JOBS] Request received');
     const { error: authError, user: payload } = await requireMobileAuth(req, 'partner');
-    if (authError) return authError;
+    if (authError) {
+      console.log('❌ [PENDING JOBS] Auth failed');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      return authError;
+    }
+    console.log(`✅ [PENDING JOBS] Partner #${payload.userId} authenticated`);
 
     // Fetch partner row — need status, categories, location, and when they last
     // sent a location update so we can judge whether the coords are fresh.
@@ -34,13 +41,21 @@ export async function GET(req: NextRequest) {
     );
 
     if (partnerRows.length === 0) {
+      console.log('❌ [PENDING JOBS] Partner not found in database');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return NextResponse.json({ success: true, job: null });
     }
 
     const partner = partnerRows[0];
+    console.log(`📋 [PENDING JOBS] Partner status: ${partner.status}`);
+    console.log(`📋 [PENDING JOBS] Partner categories: ${partner.categories}`);
+    console.log(`📋 [PENDING JOBS] Partner location: ${partner.lat}, ${partner.lng}`);
+    console.log(`📋 [PENDING JOBS] Last seen: ${partner.last_seen_at}`);
 
     // Only approved partners receive jobs
     if (partner.status !== 'approved') {
+      console.log(`❌ [PENDING JOBS] Partner status is "${partner.status}", not "approved"`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return NextResponse.json({ success: true, job: null });
     }
 
@@ -53,8 +68,12 @@ export async function GET(req: NextRequest) {
     }
 
     if (partnerCategories.length === 0) {
+      console.log('❌ [PENDING JOBS] Partner has no registered categories');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return NextResponse.json({ success: true, job: null });
     }
+
+    console.log(`✅ [PENDING JOBS] Partner registered for: ${partnerCategories.join(', ')}`);
 
     // ── Location freshness check ──────────────────────────────────────────────
     // Only use the partner's stored coordinates for distance filtering if they
@@ -67,12 +86,18 @@ export async function GET(req: NextRequest) {
     if (partner.last_seen_at != null && partner.lat != null && partner.lng != null) {
       const ageMs = Date.now() - new Date(partner.last_seen_at).getTime();
       const ageMins = ageMs / 60000;
+      console.log(`📍 [PENDING JOBS] Location age: ${ageMins.toFixed(1)} minutes`);
       if (ageMins <= LOCATION_STALE_MINUTES) {
         // Fresh location — use it for distance filtering
         partnerLat = Number(partner.lat);
         partnerLng = Number(partner.lng);
+        console.log(`✅ [PENDING JOBS] Using FRESH location for distance filtering`);
+      } else {
+        console.log(`⚠️  [PENDING JOBS] Location is STALE (> 30 mins) - showing ALL jobs`);
       }
       // else: coords are stale — partnerLat/Lng stay null → show all jobs
+    } else {
+      console.log(`⚠️  [PENDING JOBS] No location data - showing ALL jobs`);
     }
     // last_seen_at is null (never sent location) → partnerLat/Lng stay null → show all jobs
 
@@ -97,6 +122,8 @@ export async function GET(req: NextRequest) {
       icon_url: string | null;
       bg_color: string;
     };
+
+    console.log(`🔍 [PENDING JOBS] Searching for bookings matching categories: ${partnerCategories.join(', ')}`);
 
     const bookings = await query<BookingRow[]>(
       `SELECT
@@ -126,9 +153,20 @@ export async function GET(req: NextRequest) {
       [...partnerCategories]
     );
 
+    console.log(`📊 [PENDING JOBS] Found ${bookings.length} matching booking(s)`);
+
     if (bookings.length === 0) {
+      console.log('❌ [PENDING JOBS] No bookings match partner categories');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return NextResponse.json({ success: true, job: null });
     }
+
+    // Log each booking found
+    bookings.forEach((b, idx) => {
+      console.log(`   ${idx + 1}. Booking #${b.id}: ${b.service_name} - ₹${b.total_price} (${b.duration_minutes}min)`);
+      console.log(`      Address: ${b.address}`);
+      console.log(`      Coords: ${b.lat}, ${b.lng}`);
+    });
 
     // ── Resolve coordinates + calculate distances ─────────────────────────────
     type ResolvedBooking = BookingRow & {
@@ -172,6 +210,11 @@ export async function GET(req: NextRequest) {
       return 0;
     });
 
+    console.log(`📍 [PENDING JOBS] After distance calculation:`);
+    resolved.forEach((b, idx) => {
+      console.log(`   ${idx + 1}. Booking #${b.id}: Distance = ${b.distanceKm ? b.distanceKm + ' km' : 'N/A'}`);
+    });
+
     // ── Distance filter ───────────────────────────────────────────────────────
     // Only apply when we have FRESH partner coordinates (checked above).
     // If partner location is stale/unknown → show all matching jobs.
@@ -180,16 +223,29 @@ export async function GET(req: NextRequest) {
 
     const best = resolved.find((b) => {
       // No fresh partner location → always show the job
-      if (partnerLat === null || partnerLng === null) return true;
+      if (partnerLat === null || partnerLng === null) {
+        console.log(`✅ [PENDING JOBS] Booking #${b.id} - No partner location, showing job`);
+        return true;
+      }
       // Partner has fresh location but booking has no coords → show it
-      if (b.distanceKm === null) return true;
+      if (b.distanceKm === null) {
+        console.log(`✅ [PENDING JOBS] Booking #${b.id} - No booking coords, showing job`);
+        return true;
+      }
       // Both have coords — apply limit
-      return b.distanceKm <= DISTANCE_LIMIT_KM;
+      const withinLimit = b.distanceKm <= DISTANCE_LIMIT_KM;
+      console.log(`${withinLimit ? '✅' : '❌'} [PENDING JOBS] Booking #${b.id} - Distance ${b.distanceKm}km ${withinLimit ? '(within 100km limit)' : '(EXCEEDS 100km limit)'}`);
+      return withinLimit;
     });
 
     if (!best) {
+      console.log('❌ [PENDING JOBS] No bookings within distance limit');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return NextResponse.json({ success: true, job: null });
     }
+
+    console.log(`✅ [PENDING JOBS] Returning Booking #${best.id}: ${best.service_name}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
     return NextResponse.json({
       success: true,
@@ -211,6 +267,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('[partner/jobs/pending] error:', err);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
