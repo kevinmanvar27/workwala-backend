@@ -59,6 +59,25 @@ export async function POST(
       [jobId]
     );
 
+    // Ensure partner remains online after completing job
+    // This prevents partners from appearing offline after task completion
+    try {
+      await query(
+        `UPDATE partners 
+         SET is_online = 1, 
+             last_seen_at = NOW(), 
+             updated_at = NOW() 
+         WHERE id = ?`,
+        [partnerId]
+      );
+    } catch (colErr: unknown) {
+      // is_online column doesn't exist yet — graceful fallback
+      const msg = colErr instanceof Error ? colErr.message : String(colErr);
+      if (!msg.includes('is_online')) {
+        console.error('[complete] Error updating partner online status:', colErr);
+      }
+    }
+
     // Fetch customer_id to send notification
     const customerRows = await query<Array<{ customer_id: number }>>(
       `SELECT customer_id FROM bookings WHERE id = ?`,

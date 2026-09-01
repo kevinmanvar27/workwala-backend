@@ -3,6 +3,7 @@ import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
 import { randomInt, createHmac } from 'crypto';
 import { notifyAdmins, notifyCustomer, notifyPartner } from '@/lib/notificationHelper';
+import { getPartnerWalletBalance } from '@/lib/walletHelper';
 
 // Parses a "lat,lng" address string into {lat, lng} or null.
 function parseCoordsFromAddress(address: string): { lat: number; lng: number } | null {
@@ -35,6 +36,20 @@ export async function POST(req: NextRequest) {
   try {
     const { error: authError, user: payload } = await requireMobileAuth(req, 'partner');
     if (authError) return authError;
+
+    // Check partner wallet balance - must be positive to accept bookings
+    const walletBalance = await getPartnerWalletBalance(payload.userId);
+    if (walletBalance.isNegative) {
+      return NextResponse.json(
+        { 
+          error: 'Cannot accept bookings with negative wallet balance',
+          message: `Your wallet balance is ₹${walletBalance.totalBalance.toFixed(2)}. Please add money to your wallet to continue accepting jobs.`,
+          balance: walletBalance.totalBalance,
+          action_required: 'topup_wallet'
+        },
+        { status: 403 }
+      );
+    }
 
     const body = await req.json();
     const booking_id = parseInt(body.booking_id, 10);

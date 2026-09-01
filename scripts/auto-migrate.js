@@ -52,6 +52,11 @@ const MIGRATIONS = [
     name: 'missing_tables_live',
     file: 'migrate_missing_tables.js',
     description: 'Create languages, translations, withdrawal_requests and FCM token tables missing on live server'
+  },
+  {
+    name: 'seed_pages',
+    file: 'migrate_seed_pages.js',
+    description: 'Seed all 5 default pages (Help & Support, About, About Us, Privacy Policy, Terms of Service)'
   }
 ];
 

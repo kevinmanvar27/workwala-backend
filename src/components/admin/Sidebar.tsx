@@ -49,6 +49,7 @@ const NAV: NavItem[] = [
       { label: 'Social',        href: '/admin/settings?tab=social' },
       { label: 'Auth',          href: '/admin/settings?tab=auth' },
       { label: 'Payment',       href: '/admin/settings?tab=payment' },
+      { label: 'Wallet',        href: '/admin/settings?tab=wallet' },
       { label: 'Mail',          href: '/admin/settings?tab=mail' },
       { label: 'Notifications', href: '/admin/settings?tab=notifications' },
       { label: 'Analytics',     href: '/admin/settings?tab=analytics' },

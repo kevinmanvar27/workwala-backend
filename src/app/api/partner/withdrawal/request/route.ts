@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
 import { notifyAdmins } from '@/lib/notificationHelper';
+import { validateWithdrawalAmount, deductPendingFees, calculatePendingFees } from '@/lib/walletHelper';
 
 // POST /api/partner/withdrawal/request
 // Partner submits a withdrawal request
@@ -27,23 +28,24 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Get partner's current balance
-    const [partner] = await query<{ balance: number; name: string; phone: string }[]>(
-      `SELECT balance, name, phone FROM partners WHERE id = ? AND deleted_at IS NULL`,
+    // Validate withdrawal amount against available balance (considering minimum balance requirement)
+    const validation = await validateWithdrawalAmount(payload.userId, amount);
+    
+    if (!validation.isValid) {
+      return NextResponse.json({ 
+        error: validation.error,
+        balance_info: validation.balanceInfo
+      }, { status: 400 });
+    }
+
+    // Get partner details for notification
+    const [partner] = await query<{ name: string; phone: string }[]>(
+      `SELECT name, phone FROM partners WHERE id = ? AND deleted_at IS NULL`,
       [payload.userId]
     );
 
     if (!partner) {
       return NextResponse.json({ error: 'Partner not found' }, { status: 404 });
-    }
-
-    const currentBalance = Number(partner.balance || 0);
-
-    // Check if partner has sufficient balance
-    if (amount > currentBalance) {
-      return NextResponse.json({ 
-        error: `Insufficient balance. Available: ₹${currentBalance.toFixed(2)}` 
-      }, { status: 400 });
     }
 
     // Check for pending withdrawal requests
@@ -60,19 +62,35 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Create withdrawal request
+    // Calculate pending fees BEFORE deduction (for storing in withdrawal_requests)
+    const pendingFeesInfo = await calculatePendingFees(payload.userId);
+    console.log(`[WALLET] Pending fees before deduction:`, pendingFeesInfo);
+
+    // Deduct pending fees before creating withdrawal request
+    const feeDeduction = await deductPendingFees(payload.userId);
+    console.log(`[WALLET] Fees deducted at withdrawal: ₹${feeDeduction.feesDeducted} (Platform: ₹${feeDeduction.platformFees}, Task: ₹${feeDeduction.taskFees})`);
+
+    // Calculate net payout (withdrawal amount is already after fees)
+    const grossAmount = pendingFeesInfo.grossEarnings;
+    const platformFee = feeDeduction.platformFees;
+    const taskFee = feeDeduction.taskFees;
+    const totalFee = feeDeduction.feesDeducted;
+    const netPayout = amount; // The amount partner requested is the net amount after fees
+
+    // Create withdrawal request with fee breakdown
     const result = await query<{ insertId: number }>(
-      `INSERT INTO withdrawal_requests (partner_id, amount, partner_notes, status)
-       VALUES (?, ?, ?, 'pending')`,
-      [payload.userId, amount, partnerNotes]
+      `INSERT INTO withdrawal_requests 
+       (partner_id, amount, gross_amount, platform_fee, task_fee, total_fee, net_payout, partner_notes, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [payload.userId, amount, grossAmount, platformFee, taskFee, totalFee, netPayout, partnerNotes]
     );
 
     // Send push notification to admins about withdrawal request
-    console.log(`[NOTIFY] Withdrawal request: ID ${result.insertId}, Partner: ${partner.name} (${partner.phone}), Amount: ₹${amount}`);
+    console.log(`[NOTIFY] Withdrawal request: ID ${result.insertId}, Partner: ${partner.name} (${partner.phone}), Amount: ₹${amount}, Fees: ₹${totalFee}`);
     await notifyAdmins(
       'notify_withdrawal',
       'Withdrawal Request',
-      `${partner.name} requested withdrawal of ₹${amount}`,
+      `${partner.name} requested withdrawal of ₹${amount} (Fees: ₹${totalFee.toFixed(2)})`,
       { 
         type: 'withdrawal_request', 
         request_id: result.insertId.toString(), 
@@ -80,6 +98,11 @@ export async function POST(req: NextRequest) {
         partner_name: partner.name,
         partner_phone: partner.phone,
         amount: amount.toString(),
+        gross_amount: grossAmount.toString(),
+        platform_fee: platformFee.toString(),
+        task_fee: taskFee.toString(),
+        total_fee: totalFee.toString(),
+        net_payout: netPayout.toString(),
         notes: partnerNotes || 'None'
       },
       'partner-notifications'
@@ -90,7 +113,8 @@ export async function POST(req: NextRequest) {
       message: 'Withdrawal request submitted successfully',
       request_id: result.insertId,
       amount: amount,
-      status: 'pending'
+      status: 'pending',
+      balance_info: validation.balanceInfo
     }, { status: 201 });
 
   } catch (err) {

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
+import type { ResultSetHeader } from 'mysql2';
 
 /**
  * DELETE /api/partner/notifications/clear-all
- * Mark all notifications as read for the authenticated partner
+ * Delete all notifications for the authenticated partner
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -13,21 +14,18 @@ export async function DELETE(req: NextRequest) {
 
     const partnerId = payload!.userId;
 
-    // Mark all unread notifications as opened
-    await query(
-      `UPDATE push_notification_logs
-       SET status = 'opened',
-           opened_at = NOW(),
-           updated_at = NOW()
+    // Delete all notifications for the partner
+    const result = await query<ResultSetHeader>(
+      `DELETE FROM push_notification_logs
        WHERE recipient_type = 'partner'
-         AND recipient_id = ?
-         AND opened_at IS NULL`,
+         AND recipient_id = ?`,
       [partnerId]
     );
 
     return NextResponse.json({
       success: true,
-      message: 'All notifications marked as read',
+      message: 'All notifications cleared',
+      cleared_count: result.affectedRows || 0,
     });
   } catch (error: any) {
     console.error('[DELETE /api/partner/notifications/clear-all] Error:', error);

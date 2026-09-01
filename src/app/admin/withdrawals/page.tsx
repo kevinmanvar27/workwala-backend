@@ -17,6 +17,11 @@ interface WithdrawalRow {
   partner_name: string;
   partner_phone: string;
   amount: number;
+  gross_amount: number;
+  platform_fee: number;
+  task_fee: number;
+  total_fee: number;
+  net_payout: number;
   status: 'pending' | 'approved' | 'rejected' | 'completed';
   request_date: string;
   processed_date: string | null;
@@ -29,9 +34,9 @@ interface WithdrawalRow {
 }
 
 interface Stats {
-  pending: { count: number; amount: number };
-  approved: { count: number; amount: number };
-  completed: { count: number; amount: number };
+  pending: { count: number; amount: number; fees: number };
+  approved: { count: number; amount: number; fees: number };
+  completed: { count: number; amount: number; fees: number };
 }
 
 // Status styling
@@ -77,6 +82,11 @@ export default function WithdrawalsPage() {
         const normalizedWithdrawals = res.withdrawals.map((w: any) => ({
           ...w,
           amount: Number(w.amount),
+          gross_amount: Number(w.gross_amount || 0),
+          platform_fee: Number(w.platform_fee || 0),
+          task_fee: Number(w.task_fee || 0),
+          total_fee: Number(w.total_fee || 0),
+          net_payout: Number(w.net_payout || 0),
           partner_balance: Number(w.partner_balance),
         }));
         setWithdrawals(normalizedWithdrawals);
@@ -173,6 +183,9 @@ export default function WithdrawalsPage() {
                   <p className="text-sm text-amber-700 font-medium">Pending Requests</p>
                   <p className="text-2xl font-bold text-amber-900 mt-1">{stats.pending.count}</p>
                   <p className="text-sm text-amber-600 mt-1">₹{stats.pending.amount.toFixed(2)}</p>
+                  {stats.pending.fees > 0 && (
+                    <p className="text-xs text-amber-500 mt-0.5">Profit: ₹{stats.pending.fees.toFixed(2)}</p>
+                  )}
                 </div>
                 <div className="bg-amber-200 p-3 rounded-lg">
                   <Clock className="w-6 h-6 text-amber-700" />
@@ -186,6 +199,9 @@ export default function WithdrawalsPage() {
                   <p className="text-sm text-blue-700 font-medium">Approved</p>
                   <p className="text-2xl font-bold text-blue-900 mt-1">{stats.approved.count}</p>
                   <p className="text-sm text-blue-600 mt-1">₹{stats.approved.amount.toFixed(2)}</p>
+                  {stats.approved.fees > 0 && (
+                    <p className="text-xs text-blue-500 mt-0.5">Profit: ₹{stats.approved.fees.toFixed(2)}</p>
+                  )}
                 </div>
                 <div className="bg-blue-200 p-3 rounded-lg">
                   <CheckCircle className="w-6 h-6 text-blue-700" />
@@ -199,6 +215,9 @@ export default function WithdrawalsPage() {
                   <p className="text-sm text-green-700 font-medium">Completed</p>
                   <p className="text-2xl font-bold text-green-900 mt-1">{stats.completed.count}</p>
                   <p className="text-sm text-green-600 mt-1">₹{stats.completed.amount.toFixed(2)}</p>
+                  {stats.completed.fees > 0 && (
+                    <p className="text-xs text-green-500 mt-0.5">Profit: ₹{stats.completed.fees.toFixed(2)}</p>
+                  )}
                 </div>
                 <div className="bg-green-200 p-3 rounded-lg">
                   <TrendingUp className="w-6 h-6 text-green-700" />
@@ -269,7 +288,7 @@ export default function WithdrawalsPage() {
                         Partner
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-[#757575] uppercase tracking-wider">
-                        Amount
+                        Amount / Fees
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-[#757575] uppercase tracking-wider">
                         Balance
@@ -302,7 +321,14 @@ export default function WithdrawalsPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <p className="font-bold text-[#1a1a1a]">₹{withdrawal.amount.toFixed(2)}</p>
+                            <div>
+                              <p className="font-bold text-[#1a1a1a]">₹{withdrawal.amount.toFixed(2)}</p>
+                              {withdrawal.total_fee > 0 && (
+                                <p className="text-xs text-green-600 font-medium">
+                                  Profit: ₹{withdrawal.total_fee.toFixed(2)}
+                                </p>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <p className="text-sm text-[#757575]">₹{withdrawal.partner_balance.toFixed(2)}</p>
@@ -434,13 +460,47 @@ export default function WithdrawalsPage() {
                     <p className="font-medium text-[#1a1a1a]">{selectedWithdrawal.partner_phone}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-[#757575]">Amount</p>
+                    <p className="text-sm text-[#757575]">Withdrawal Amount</p>
                     <p className="font-bold text-lg text-[#1a1a1a]">₹{selectedWithdrawal.amount.toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-[#757575]">Partner Balance</p>
                     <p className="font-medium text-[#1a1a1a]">₹{selectedWithdrawal.partner_balance.toFixed(2)}</p>
                   </div>
+                  
+                  {/* Fee Breakdown Section */}
+                  {selectedWithdrawal.total_fee > 0 && (
+                    <>
+                      <div className="col-span-2">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-2">
+                          <p className="text-sm font-semibold text-green-800 mb-3">💰 Admin Profit Breakdown</p>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-[#757575]">Gross Earnings:</span>
+                              <span className="font-medium text-[#1a1a1a]">₹{selectedWithdrawal.gross_amount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-[#757575]">Platform Fee:</span>
+                              <span className="font-medium text-green-700">₹{selectedWithdrawal.platform_fee.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-[#757575]">Task Fee:</span>
+                              <span className="font-medium text-green-700">₹{selectedWithdrawal.task_fee.toFixed(2)}</span>
+                            </div>
+                            <div className="border-t border-green-300 pt-2 flex justify-between text-sm font-semibold">
+                              <span className="text-green-800">Total Admin Profit:</span>
+                              <span className="text-green-800">₹{selectedWithdrawal.total_fee.toFixed(2)}</span>
+                            </div>
+                            <div className="border-t border-green-300 pt-2 flex justify-between">
+                              <span className="text-[#757575] font-medium">Net Payout to Partner:</span>
+                              <span className="font-bold text-[#1a1a1a]">₹{selectedWithdrawal.net_payout.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
                   <div>
                     <p className="text-sm text-[#757575]">Status</p>
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[selectedWithdrawal.status].bg} ${STATUS_STYLES[selectedWithdrawal.status].text}`}>
@@ -511,11 +571,48 @@ export default function WithdrawalsPage() {
                 </h2>
               </div>
               <div className="p-6 space-y-4">
-                <div className="bg-[#F9F9F9] p-4 rounded-lg">
-                  <p className="text-sm text-[#757575]">Partner</p>
-                  <p className="font-medium text-[#1a1a1a]">{selectedWithdrawal.partner_name}</p>
-                  <p className="text-sm text-[#757575] mt-2">Amount</p>
-                  <p className="font-bold text-lg text-[#1a1a1a]">₹{selectedWithdrawal.amount.toFixed(2)}</p>
+                <div className="bg-[#F9F9F9] p-4 rounded-lg space-y-3">
+                  <div>
+                    <p className="text-sm text-[#757575]">Partner</p>
+                    <p className="font-medium text-[#1a1a1a]">{selectedWithdrawal.partner_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-[#757575]">Withdrawal Amount</p>
+                    <p className="font-bold text-lg text-[#1a1a1a]">₹{selectedWithdrawal.amount.toFixed(2)}</p>
+                  </div>
+                  
+                  {/* Show fee breakdown if available */}
+                  {selectedWithdrawal.total_fee > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-2">
+                      <p className="text-xs font-semibold text-green-800 mb-2">Fee Breakdown (Admin Profit)</p>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-[#757575]">Platform Fee:</span>
+                          <span className="font-medium text-green-700">₹{selectedWithdrawal.platform_fee.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#757575]">Task Fee:</span>
+                          <span className="font-medium text-green-700">₹{selectedWithdrawal.task_fee.toFixed(2)}</span>
+                        </div>
+                        <div className="border-t border-green-300 pt-1 flex justify-between font-semibold">
+                          <span className="text-green-800">Total Profit:</span>
+                          <span className="text-green-800">₹{selectedWithdrawal.total_fee.toFixed(2)}</span>
+                        </div>
+                        <div className="border-t border-green-300 pt-1 flex justify-between">
+                          <span className="text-[#757575]">Net Payout:</span>
+                          <span className="font-bold text-[#1a1a1a]">₹{selectedWithdrawal.net_payout.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {processAction === 'complete' && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+                      <p className="text-xs font-medium text-blue-800">
+                        ⚠️ Transfer only ₹{selectedWithdrawal.net_payout > 0 ? selectedWithdrawal.net_payout.toFixed(2) : selectedWithdrawal.amount.toFixed(2)} to partner's bank account
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {processAction === 'complete' && (

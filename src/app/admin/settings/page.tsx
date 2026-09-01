@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { Settings, Globe, Shield, CreditCard, Mail, Upload, X, Save, BarChart3, Database, Download, RefreshCw, FileText, Table2, Palette, Bell, Smartphone, MessageSquare, Eye, EyeOff } from 'lucide-react';
+import { Settings, Globe, Shield, CreditCard, Mail, Upload, X, Save, BarChart3, Database, Download, RefreshCw, FileText, Table2, Palette, Bell, Smartphone, MessageSquare, Eye, EyeOff, Wallet } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
 import { apiFetch } from '@/lib/apiFetch';
 
@@ -21,6 +21,7 @@ const TABS = [
   { id: 'social',        label: 'Social',        icon: <Globe size={15} /> },
   { id: 'auth',          label: 'Auth',          icon: <Shield size={15} /> },
   { id: 'payment',       label: 'Payment',       icon: <CreditCard size={15} /> },
+  { id: 'wallet',        label: 'Wallet',        icon: <Wallet size={15} /> },
   { id: 'mail',          label: 'Mail',          icon: <Mail size={15} /> },
   { id: 'notifications', label: 'Notifications', icon: <Bell size={15} /> },
   { id: 'analytics',     label: 'Analytics',     icon: <BarChart3 size={15} /> },
@@ -761,6 +762,187 @@ function SettingsContent() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Wallet ──────────────────────────────────────────────── */}
+        {activeTab === 'wallet' && (
+          <div className="p-6 space-y-6">
+            <div>
+              <h2 className="font-semibold text-[#2D2D2D]">Partner Wallet Settings</h2>
+              <p className="text-xs text-[#757575] mt-0.5">Configure wallet balance requirements and fee structure</p>
+            </div>
+
+            {/* Info banner */}
+            <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3.5">
+              <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="text-xs text-blue-700 space-y-1">
+                <p className="font-semibold">How Partner Wallet Works:</p>
+                <ul className="list-disc list-inside space-y-0.5 ml-1">
+                  <li>Partners earn money in their wallet after completing jobs</li>
+                  <li>Platform Fee + Task Fee are deducted from each job (both online & cash payments)</li>
+                  <li>Minimum balance is reserved and cannot be withdrawn</li>
+                  <li>Partners can withdraw: Total Balance - Minimum Balance</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Minimum Balance */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                  <Wallet size={16} className="text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-[#2D2D2D]">Minimum Wallet Balance</h3>
+                  <p className="text-xs text-[#757575]">Partners must maintain this balance (cannot withdraw below this)</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field 
+                  label="Minimum Balance (₹)" 
+                  group="wallet" 
+                  field="partner_minimum_wallet_balance" 
+                  type="number"
+                  placeholder="200" 
+                  hint="Partners will see a warning when balance drops below this amount"
+                  get={get} 
+                  set={set} 
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-[#E0E0E0]"></div>
+
+            {/* Platform Fee */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <CreditCard size={16} className="text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-[#2D2D2D]">Platform Fee</h3>
+                  <p className="text-xs text-[#757575]">Commission deducted from each completed job</p>
+                </div>
+              </div>
+
+              {/* Fee Type Toggle */}
+              <div>
+                <label className="block text-xs font-semibold text-[#757575] mb-2 uppercase tracking-wide">Fee Type</label>
+                <div className="flex items-center gap-2 p-1 rounded-xl w-fit bg-[#F9F9F9]">
+                  {['percentage', 'fixed'].map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => set('wallet', 'partner_platform_fee_type', type)}
+                      className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 capitalize ${
+                        get('wallet', 'partner_platform_fee_type') === type
+                          ? 'bg-[#4A2372] text-white shadow-sm scale-[1.03]'
+                          : 'text-[#757575] hover:text-[#2D2D2D] hover:scale-[1.02]'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fee Value */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {get('wallet', 'partner_platform_fee_type') === 'percentage' ? (
+                  <Field 
+                    label="Platform Fee (%)" 
+                    group="wallet" 
+                    field="partner_platform_fee_value" 
+                    type="number"
+                    placeholder="10" 
+                    hint="e.g., 10 means 10% of job amount"
+                    get={get} 
+                    set={set} 
+                  />
+                ) : (
+                  <Field 
+                    label="Platform Fee (₹)" 
+                    group="wallet" 
+                    field="partner_platform_fee_value" 
+                    type="number"
+                    placeholder="50" 
+                    hint="Fixed amount deducted per job"
+                    get={get} 
+                    set={set} 
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-[#E0E0E0]"></div>
+
+            {/* Task Fee */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                  <FileText size={16} className="text-green-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-[#2D2D2D]">Task Fee</h3>
+                  <p className="text-xs text-[#757575]">Fixed fee per completed task (in addition to platform fee)</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field 
+                  label="Task Fee (₹)" 
+                  group="wallet" 
+                  field="partner_task_fee" 
+                  type="number"
+                  placeholder="20" 
+                  hint="Flat fee charged per job completion"
+                  get={get} 
+                  set={set} 
+                />
+              </div>
+            </div>
+
+            {/* Fee Calculation Example */}
+            <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-5">
+              <h4 className="text-sm font-semibold text-[#2D2D2D] mb-3 flex items-center gap-2">
+                <BarChart3 size={16} className="text-purple-600" />
+                Fee Calculation Example
+              </h4>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-[#757575]">Job Amount:</span>
+                  <span className="font-semibold text-[#2D2D2D]">₹1,000</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[#757575]">
+                    Platform Fee ({get('wallet', 'partner_platform_fee_type') === 'percentage' ? `${get('wallet', 'partner_platform_fee_value')}%` : `₹${get('wallet', 'partner_platform_fee_value')}`}):
+                  </span>
+                  <span className="font-semibold text-red-600">
+                    - ₹{get('wallet', 'partner_platform_fee_type') === 'percentage' 
+                      ? (1000 * (parseFloat(get('wallet', 'partner_platform_fee_value') || '0') / 100)).toFixed(2)
+                      : parseFloat(get('wallet', 'partner_platform_fee_value') || '0').toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[#757575]">Task Fee:</span>
+                  <span className="font-semibold text-red-600">- ₹{parseFloat(get('wallet', 'partner_task_fee') || '0').toFixed(2)}</span>
+                </div>
+                <div className="border-t border-purple-300 my-2"></div>
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-[#2D2D2D]">Partner Receives:</span>
+                  <span className="font-bold text-green-600 text-base">
+                    ₹{(1000 - 
+                      (get('wallet', 'partner_platform_fee_type') === 'percentage' 
+                        ? (1000 * (parseFloat(get('wallet', 'partner_platform_fee_value') || '0') / 100))
+                        : parseFloat(get('wallet', 'partner_platform_fee_value') || '0')) - 
+                      parseFloat(get('wallet', 'partner_task_fee') || '0')
+                    ).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

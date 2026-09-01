@@ -5,9 +5,7 @@ import type { ResultSetHeader } from 'mysql2';
 
 /**
  * DELETE /api/customer/notifications/clear-all
- * Mark all unread notifications as read for the authenticated customer.
- * Uses DELETE method to match the "clear" UX pattern, but marks as read
- * rather than hard-deleting so notification history is preserved.
+ * Delete all notifications for the authenticated customer.
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -17,19 +15,15 @@ export async function DELETE(req: NextRequest) {
     const customerId = payload!.userId;
 
     const result = await query<ResultSetHeader>(
-      `UPDATE push_notification_logs
-       SET status = 'opened',
-           opened_at = NOW(),
-           updated_at = NOW()
+      `DELETE FROM push_notification_logs
        WHERE recipient_type = 'customer'
-         AND recipient_id = ?
-         AND opened_at IS NULL`,
+         AND recipient_id = ?`,
       [customerId]
     );
 
     return NextResponse.json({
       success: true,
-      message: `${result.affectedRows} notification(s) marked as read`,
+      message: `${result.affectedRows} notification(s) cleared`,
       cleared_count: result.affectedRows,
     });
   } catch (error: any) {

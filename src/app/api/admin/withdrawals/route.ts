@@ -35,6 +35,11 @@ export async function GET(req: NextRequest) {
       partner_name: string;
       partner_phone: string;
       amount: number;
+      gross_amount: number;
+      platform_fee: number;
+      task_fee: number;
+      total_fee: number;
+      net_payout: number;
       status: string;
       request_date: string;
       processed_date: string | null;
@@ -45,7 +50,9 @@ export async function GET(req: NextRequest) {
       transaction_id: string | null;
       partner_balance: number;
     }[]>(
-      `SELECT wr.id, wr.partner_id, wr.amount, wr.status, 
+      `SELECT wr.id, wr.partner_id, wr.amount, 
+              wr.gross_amount, wr.platform_fee, wr.task_fee, wr.total_fee, wr.net_payout,
+              wr.status, 
               wr.request_date, wr.processed_date, wr.processed_by,
               wr.admin_notes, wr.partner_notes, wr.transaction_id,
               p.name AS partner_name, p.phone AS partner_phone, p.balance AS partner_balance,
@@ -74,6 +81,11 @@ export async function GET(req: NextRequest) {
     const normalizedWithdrawals = withdrawals.map(w => ({
       ...w,
       amount: Number(w.amount),
+      gross_amount: Number(w.gross_amount || 0),
+      platform_fee: Number(w.platform_fee || 0),
+      task_fee: Number(w.task_fee || 0),
+      total_fee: Number(w.total_fee || 0),
+      net_payout: Number(w.net_payout || 0),
       partner_balance: Number(w.partner_balance),
     }));
 
@@ -89,22 +101,28 @@ export async function GET(req: NextRequest) {
       countParams
     );
 
-    // Get summary statistics
+    // Get summary statistics including total admin profit
     const [stats] = await query<{
       pending_count: number;
       pending_amount: number;
+      pending_fees: number;
       approved_count: number;
       approved_amount: number;
+      approved_fees: number;
       completed_count: number;
       completed_amount: number;
+      completed_fees: number;
     }[]>(
       `SELECT 
          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
          SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS pending_amount,
+         SUM(CASE WHEN status = 'pending' THEN total_fee ELSE 0 END) AS pending_fees,
          SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved_count,
          SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END) AS approved_amount,
+         SUM(CASE WHEN status = 'approved' THEN total_fee ELSE 0 END) AS approved_fees,
          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_count,
-         SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) AS completed_amount
+         SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) AS completed_amount,
+         SUM(CASE WHEN status = 'completed' THEN total_fee ELSE 0 END) AS completed_fees
        FROM withdrawal_requests
        WHERE deleted_at IS NULL`
     );
@@ -117,15 +135,18 @@ export async function GET(req: NextRequest) {
       stats: {
         pending: {
           count: Number(stats?.pending_count || 0),
-          amount: Number(stats?.pending_amount || 0)
+          amount: Number(stats?.pending_amount || 0),
+          fees: Number(stats?.pending_fees || 0)
         },
         approved: {
           count: Number(stats?.approved_count || 0),
-          amount: Number(stats?.approved_amount || 0)
+          amount: Number(stats?.approved_amount || 0),
+          fees: Number(stats?.approved_fees || 0)
         },
         completed: {
           count: Number(stats?.completed_count || 0),
-          amount: Number(stats?.completed_amount || 0)
+          amount: Number(stats?.completed_amount || 0),
+          fees: Number(stats?.completed_fees || 0)
         }
       }
     });
@@ -159,12 +180,19 @@ export async function PATCH(req: NextRequest) {
       id: number;
       partner_id: number;
       amount: number;
+      gross_amount: number;
+      platform_fee: number;
+      task_fee: number;
+      total_fee: number;
+      net_payout: number;
       status: string;
       partner_name: string;
       partner_phone: string;
       partner_balance: number;
     }[]>(
-      `SELECT wr.id, wr.partner_id, wr.amount, wr.status,
+      `SELECT wr.id, wr.partner_id, wr.amount, 
+              wr.gross_amount, wr.platform_fee, wr.task_fee, wr.total_fee, wr.net_payout,
+              wr.status,
               p.name AS partner_name, p.phone AS partner_phone, p.balance AS partner_balance
        FROM withdrawal_requests wr
        INNER JOIN partners p ON p.id = wr.partner_id

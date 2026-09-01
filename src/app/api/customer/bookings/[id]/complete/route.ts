@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
 import { notifyAdmins, notifyPartner, notifyCustomer } from '@/lib/notificationHelper';
+import { creditPartnerWallet, calculateTaskFees, getPartnerWalletBalance } from '@/lib/walletHelper';
 
 // Reads Razorpay key secret from DB settings, falling back to .env.local
 async function getRazorpaySecret(): Promise<string> {
@@ -192,17 +193,37 @@ export async function POST(
     }
 
     // ── Credit partner earnings ───────────────────────────────────────────────
-    // Only credit the partner's digital balance for UPI / Wallet payments.
-    // Cash is paid directly by the customer to the partner in hand — there is
-    // nothing to credit digitally. Crediting cash would inflate the balance
-    // and allow double-withdrawal.
-    if (booking.partner_id && paymentMethod !== 'Cash') {
+    // Use wallet system to properly handle fees and balance tracking
+    if (booking.partner_id) {
       try {
-        await query(
-          `UPDATE partners SET balance = balance + ? WHERE id = ?`,
-          [totalPrice, booking.partner_id]
+        const paymentType = paymentMethod === 'Cash' ? 'cash' : 'online';
+        const walletResult = await creditPartnerWallet(
+          booking.partner_id,
+          bookingId,
+          totalPrice,
+          paymentType
         );
-      } catch {
+
+        console.log(`[WALLET] Partner ${booking.partner_id} credited: ${paymentType} payment`, walletResult);
+
+        // Check if wallet went negative (for cash payments)
+        const walletBalance = await getPartnerWalletBalance(booking.partner_id);
+        if (walletBalance.isNegative) {
+          // Notify partner about negative balance
+          await notifyPartner(
+            booking.partner_id,
+            'Low Wallet Balance',
+            `Your wallet balance is ₹${walletBalance.totalBalance.toFixed(2)}. Please add money to continue accepting jobs.`,
+            { 
+              type: 'low_balance', 
+              balance: walletBalance.totalBalance.toString(),
+              action_required: true 
+            },
+            'partner-notifications'
+          );
+        }
+      } catch (walletError) {
+        console.error('[WALLET] Error crediting partner:', walletError);
         // Non-fatal — don't fail the payment confirmation
       }
     }

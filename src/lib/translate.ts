@@ -91,21 +91,100 @@ export async function getEnglishTranslationKeys(): Promise<TranslationKey[]> {
 }
 
 /**
- * Translate using Google Translate API directly (more reliable for large requests)
+ * Translate using Google Cloud Translation API (Official - Requires API Key)
  */
-async function translateViaDirect(text: string, targetLang: string): Promise<string> {
+async function translateViaCloudAPI(text: string, targetLang: string): Promise<string> {
+  const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('GOOGLE_TRANSLATE_API_KEY not configured');
+  }
+
   return new Promise((resolve, reject) => {
     const encodedText = encodeURIComponent(text);
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodedText}`;
+    const url = `https://translation.googleapis.com/language/translate/v2?key=${apiKey}&q=${encodedText}&source=en&target=${targetLang}&format=text`;
     
     https.get(url, (res) => {
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
         try {
+          if (res.statusCode !== 200) {
+            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+            return;
+          }
+          const parsed = JSON.parse(data);
+          if (parsed?.data?.translations?.[0]?.translatedText) {
+            console.log('✅ Translation successful with Cloud API');
+            resolve(parsed.data.translations[0].translatedText);
+          } else {
+            reject(new Error('Invalid Cloud API response format'));
+          }
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }).on('error', reject);
+  });
+}
+
+/**
+ * Translate using Google Translate API with multiple fallback methods
+ */
+async function translateViaDirect(text: string, targetLang: string): Promise<string> {
+  // Method 0: Try official Google Cloud Translation API if API key is configured
+  if (process.env.GOOGLE_TRANSLATE_API_KEY) {
+    try {
+      console.log('🔄 Attempting translation with Google Cloud API...');
+      return await translateViaCloudAPI(text, targetLang);
+    } catch (error) {
+      console.warn('⚠️ Cloud API failed, trying free methods...', error instanceof Error ? error.message : error);
+    }
+  }
+
+  // Method 1: Try using @vitalets/google-translate-api with proxy
+  try {
+    console.log('🔄 Attempting translation with @vitalets/google-translate-api...');
+    const result = await googleTranslate(text, { 
+      from: 'en', 
+      to: targetLang,
+      fetchOptions: {
+        agent: undefined // Let the library handle proxy automatically
+      }
+    });
+    console.log('✅ Translation successful with library');
+    return result.text;
+  } catch (error) {
+    console.warn('⚠️ Library method failed, trying direct API...', error instanceof Error ? error.message : error);
+  }
+
+  // Method 2: Try direct Google Translate API
+  return new Promise((resolve, reject) => {
+    const encodedText = encodeURIComponent(text);
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodedText}`;
+    
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://translate.google.com/',
+      }
+    };
+    
+    https.get(url, options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        try {
+          if (res.statusCode !== 200) {
+            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+            return;
+          }
           const parsed = JSON.parse(data);
           if (parsed && parsed[0]) {
             const translated = parsed[0].map((item: any) => item[0]).join('');
+            console.log('✅ Translation successful with direct API');
             resolve(translated);
           } else {
             reject(new Error('Invalid response format'));
@@ -114,7 +193,10 @@ async function translateViaDirect(text: string, targetLang: string): Promise<str
           reject(e);
         }
       });
-    }).on('error', reject);
+    }).on('error', (error) => {
+      console.error('❌ Direct API error:', error);
+      reject(error);
+    });
   });
 }
 
