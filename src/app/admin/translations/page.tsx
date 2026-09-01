@@ -592,69 +592,116 @@ function TranslationEditor({
             </div>
           ) : (
             <div className="space-y-2">
+              {/* Column headers for side-by-side view (only for non-English) */}
+              {languageCode !== 'en' && (
+                <div className="grid grid-cols-2 gap-3 px-4 pb-1">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
+                    English (Source)
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-purple-400 inline-block"></span>
+                    {languageCode.toUpperCase()} (Translation)
+                  </div>
+                </div>
+              )}
+
               {translations.map((trans) => (
                 <div key={trans.translation_key} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <code className="text-sm font-mono text-purple-600 bg-purple-50 px-2 py-1 rounded">
-                          {trans.translation_key}
-                        </code>
-                        {trans.category && (
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                            {trans.category}
-                          </span>
-                        )}
-                      </div>
-                      {editingKey === trans.translation_key ? (
-                        <div className="space-y-2">
-                          <textarea
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                            rows={3}
-                            autoFocus
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleSave(trans.translation_key)}
-                              className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setEditingKey(null)}
-                              className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-gray-700 text-sm whitespace-pre-wrap break-words">
-                          {trans.translation_value}
-                        </p>
-                      )}
-                    </div>
+                  {/* Key + category row */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <code className="text-xs font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
+                      {trans.translation_key}
+                    </code>
+                    {trans.category && (
+                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
+                        {trans.category}
+                      </span>
+                    )}
+                    {/* Edit / Delete actions */}
                     {editingKey !== trans.translation_key && (
-                      <div className="flex items-center gap-1">
+                      <div className="ml-auto flex items-center gap-1">
                         <button
                           onClick={() => handleEdit(trans.translation_key, trans.translation_value)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Edit"
                         >
-                          <Edit size={16} />
+                          <Edit size={14} />
                         </button>
                         <button
                           onClick={() => handleDelete(trans.translation_key)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     )}
                   </div>
+
+                  {/* Side-by-side English → Translation */}
+                  {editingKey === trans.translation_key ? (
+                    // Edit mode: show English above, editable textarea below
+                    <div className="space-y-2">
+                      {languageCode !== 'en' && trans.english_value && (
+                        <div className="px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800 whitespace-pre-wrap break-words">
+                          <span className="text-xs font-semibold text-blue-400 block mb-1">English</span>
+                          {trans.english_value}
+                        </div>
+                      )}
+                      <textarea
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="w-full px-3 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                        rows={Math.max(2, (editValue.match(/\n/g) || []).length + 2)}
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSave(trans.translation_key)}
+                          className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingKey(null)}
+                          className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : languageCode === 'en' ? (
+                    // English language: single column
+                    <p className="text-gray-700 text-sm whitespace-pre-wrap break-words">
+                      {trans.translation_value}
+                    </p>
+                  ) : (
+                    // Non-English: side-by-side columns
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* English source */}
+                      <div className="px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-900 whitespace-pre-wrap break-words min-h-[2rem]">
+                        {trans.english_value || <span className="text-gray-400 italic">—</span>}
+                      </div>
+                      {/* Translated value */}
+                      <div
+                        className={`px-3 py-2 rounded-lg border text-sm whitespace-pre-wrap break-words min-h-[2rem] cursor-pointer hover:border-purple-300 transition-colors ${
+                          trans.translation_value === trans.english_value
+                            ? 'bg-yellow-50 border-yellow-200 text-yellow-800'  // same as English = not yet translated
+                            : 'bg-purple-50 border-purple-100 text-purple-900'  // properly translated
+                        }`}
+                        onClick={() => handleEdit(trans.translation_key, trans.translation_value)}
+                        title="Click to edit"
+                      >
+                        {trans.translation_value || <span className="text-gray-400 italic">—</span>}
+                        {trans.translation_value === trans.english_value && (
+                          <span className="ml-2 text-xs bg-yellow-200 text-yellow-700 px-1.5 py-0.5 rounded font-medium">
+                            not translated
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -844,6 +891,7 @@ function AddLanguageModal({
   const [showDropdown, setShowDropdown] = useState(false);
   const [sortOrder, setSortOrder] = useState(999);
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState<'idle' | 'creating' | 'translating' | 'done'>('idle');
 
   // Filter languages based on search query
   const filteredLanguages = GOOGLE_LANGUAGES.filter(lang => 
@@ -868,6 +916,12 @@ function AddLanguageModal({
     
     try {
       setSaving(true);
+      setProgress('creating');
+
+      // Small delay so user sees the "Creating language..." state
+      await new Promise(r => setTimeout(r, 300));
+      setProgress('translating');
+
       const response = await apiFetch('/api/admin/translations/languages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -879,19 +933,41 @@ function AddLanguageModal({
         }),
       });
 
-      if (response.ok) {
-        toast.success('Language added successfully');
+      const data = await response.json();
+      setProgress('done');
+
+      if (response.ok && data.success) {
+        if (data.needs_translation) {
+          // Language created + seeded with English fallback, but translation failed
+          toast.success(
+            `✅ ${selectedLanguage.name} added with ${data.translation_stats?.total_keys || 528} keys (English fallback).\n\nUse the ✨ Auto-Translate button to translate them.`,
+            { duration: 6000 }
+          );
+        } else {
+          toast.success(
+            `✅ ${selectedLanguage.name} added with ${data.translation_stats?.total_keys || 528} translated keys!`,
+            { duration: 5000 }
+          );
+        }
         onSuccess();
         onClose();
       } else {
-        const data = await response.json();
         toast.error(data.error || 'Failed to add language');
+        setProgress('idle');
       }
     } catch (error) {
       toast.error('Failed to add language');
+      setProgress('idle');
     } finally {
       setSaving(false);
     }
+  };
+
+  const progressMessages = {
+    idle: null,
+    creating: 'Creating language...',
+    translating: 'Translating 528 keys — this may take 1–2 minutes. Please keep this window open...',
+    done: 'Done!',
   };
 
   return (
@@ -917,10 +993,11 @@ function AddLanguageModal({
               onFocus={() => setShowDropdown(true)}
               placeholder="Search for a language..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              disabled={saving}
             />
             
             {/* Dropdown */}
-            {showDropdown && (
+            {showDropdown && !saving && (
               <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                 {filteredLanguages.length > 0 ? (
                   filteredLanguages.map((lang) => (
@@ -948,7 +1025,7 @@ function AddLanguageModal({
             )}
 
             {/* Selected Language Display */}
-            {selectedLanguage && (
+            {selectedLanguage && !saving && (
               <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
@@ -965,34 +1042,61 @@ function AddLanguageModal({
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Sort Order
-            </label>
-            <input
-              type="number"
-              value={sortOrder}
-              onChange={(e) => setSortOrder(parseInt(e.target.value) || 999)}
-              min={1}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
-            <p className="text-xs text-gray-500 mt-1">Lower numbers appear first in the language list</p>
-          </div>
+          {/* Progress indicator */}
+          {saving && progress !== 'idle' && (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-medium text-blue-800">{progressMessages[progress]}</p>
+                  {progress === 'translating' && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Translating all 528 keys to {selectedLanguage?.name}...
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!saving && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sort Order
+              </label>
+              <input
+                type="number"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(parseInt(e.target.value) || 999)}
+                min={1}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">Lower numbers appear first in the language list</p>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              disabled={saving}
+              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving || !selectedLanguage}
-              className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {saving ? 'Adding...' : 'Add Language'}
+              {saving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  {progress === 'creating' ? 'Creating...' : 'Translating...'}
+                </>
+              ) : (
+                'Add Language'
+              )}
             </button>
           </div>
         </form>

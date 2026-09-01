@@ -217,7 +217,7 @@ export async function POST(
             { 
               type: 'low_balance', 
               balance: walletBalance.totalBalance.toString(),
-              action_required: true 
+              action_required: 'true' 
             },
             'partner-notifications'
           );

@@ -105,12 +105,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate language code format (2-3 lowercase letters)
-    if (!/^[a-z]{2,3}$/.test(code)) {
+    // Validate language code format (2-3 lowercase letters, optionally with hyphen subtag e.g. zh-CN)
+    if (!/^[a-z]{2,3}(-[a-zA-Z]{2,4})?$/.test(code)) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Invalid language code. Must be 2-3 lowercase letters (e.g., en, hi, pa)',
+          error: 'Invalid language code. Must be 2-3 lowercase letters, optionally with subtag (e.g., en, hi, zh-CN)',
         },
         { status: 400 }
       );
@@ -153,11 +153,15 @@ export async function POST(request: NextRequest) {
       const englishKeys = await getEnglishTranslationKeys();
       console.log(`✅ Found ${englishKeys.length} keys to translate`);
 
-      // Step 2: Translate all keys to target language (BULK - all at once)
+      // Step 2: Seed all keys with English values first (guarantees 528 keys exist immediately)
+      await batchInsertTranslations(pool, code, englishKeys, new Map(englishKeys.map(k => [k.key, k.value])));
+      console.log(`✅ Seeded ${englishKeys.length} keys with English fallback values`);
+
+      // Step 3: Translate all keys to target language
       const translations = await translateAllKeysAtOnce(englishKeys, code);
       console.log(`✅ Translation completed: ${translations.size} keys`);
 
-      // Step 3: Insert translations into database
+      // Step 4: Update with translated values
       await batchInsertTranslations(pool, code, englishKeys, translations);
       console.log(`✅ Auto-translation completed for ${code}`);
 
@@ -174,13 +178,29 @@ export async function POST(request: NextRequest) {
     } catch (translateError) {
       console.error('⚠️ Auto-translation failed, but language was created:', translateError);
       
-      // Language was created successfully, but translation failed
-      return NextResponse.json({
-        success: true,
-        message: 'Language added successfully, but auto-translation failed. Please use the auto-translate button.',
-        language: { code, name, native_name, is_active: true, sort_order },
-        translation_error: translateError instanceof Error ? translateError.message : 'Unknown error',
-      });
+      // Try to at least seed with English values so the language has all 528 keys
+      try {
+        const englishKeys = await getEnglishTranslationKeys();
+        await batchInsertTranslations(pool, code, englishKeys, new Map(englishKeys.map(k => [k.key, k.value])));
+        console.log(`✅ Seeded ${englishKeys.length} English fallback keys for ${code}`);
+
+        return NextResponse.json({
+          success: true,
+          message: `Language added with ${englishKeys.length} keys (English fallback). Use Auto-Translate to translate them.`,
+          language: { code, name, native_name, is_active: true, sort_order },
+          translation_error: translateError instanceof Error ? translateError.message : 'Unknown error',
+          needs_translation: true,
+        });
+      } catch (seedError) {
+        // Language was created but no keys — still success, user can auto-translate later
+        return NextResponse.json({
+          success: true,
+          message: 'Language added successfully, but auto-translation failed. Please use the auto-translate button.',
+          language: { code, name, native_name, is_active: true, sort_order },
+          translation_error: translateError instanceof Error ? translateError.message : 'Unknown error',
+          needs_translation: true,
+        });
+      }
     }
 
   } catch (error) {

@@ -533,8 +533,8 @@ export async function deductPendingFees(partnerId: number): Promise<{
     `Platform and task fees deducted at withdrawal`,
     {
       referenceType: 'withdrawal',
-      referenceId: null,
-      paymentMethod: null,
+      referenceId: undefined,
+      paymentMethod: undefined,
       metadata: {
         platform_fee: pendingFees.platformFees,
         task_fee: pendingFees.taskFees,

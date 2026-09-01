@@ -8,6 +8,7 @@ interface Translation extends RowDataPacket {
   language_code: string;
   translation_key: string;
   translation_value: string;
+  english_value: string;
   category: string | null;
   created_at: Date;
   updated_at: Date;
@@ -22,11 +23,8 @@ export async function GET(
     const { languageCode } = await params;
     console.log('🔍 GET translations endpoint called for:', languageCode);
     
-    const user = await requirePermission(request, 'settings.view');
-    if (!user) {
-      console.log('❌ Unauthorized access attempt - no user or permission');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { error } = await requirePermission(request, 'settings.view');
+    if (error) return error;
 
     console.log('✅ User authorized');
 
@@ -39,21 +37,45 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = (page - 1) * limit;
 
-    // Build query
-    let query = 'SELECT * FROM translations WHERE language_code = ?';
-    const queryParams: any[] = [languageCode];
+    // For non-English languages, JOIN with English to get the source value side-by-side
+    const isEnglish = languageCode === 'en';
+
+    let query: string;
+    const queryParams: any[] = [];
+
+    if (isEnglish) {
+      query = `
+        SELECT t.*, t.translation_value AS english_value
+        FROM translations t
+        WHERE t.language_code = ?
+      `;
+      queryParams.push(languageCode);
+    } else {
+      // LEFT JOIN with English translations to show source alongside target
+      query = `
+        SELECT 
+          t.*,
+          COALESCE(en.translation_value, '') AS english_value
+        FROM translations t
+        LEFT JOIN translations en 
+          ON en.translation_key = t.translation_key 
+          AND en.language_code = 'en'
+        WHERE t.language_code = ?
+      `;
+      queryParams.push(languageCode);
+    }
 
     if (search) {
-      query += ' AND (translation_key LIKE ? OR translation_value LIKE ?)';
+      query += ' AND (t.translation_key LIKE ? OR t.translation_value LIKE ?)';
       queryParams.push(`%${search}%`, `%${search}%`);
     }
 
     if (category) {
-      query += ' AND category = ?';
+      query += ' AND t.category = ?';
       queryParams.push(category);
     }
 
-    query += ' ORDER BY translation_key ASC LIMIT ? OFFSET ?';
+    query += ' ORDER BY t.translation_key ASC LIMIT ? OFFSET ?';
     queryParams.push(limit, offset);
 
     console.log('🔍 Query:', query);
