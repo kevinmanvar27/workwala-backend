@@ -1,219 +1,247 @@
 /**
  * Translation Utility
- * 
- * Provides functions to auto-translate ARB file keys using Google Translate
- * Uses SINGLE REQUEST approach for fast translation
+ *
+ * Key design decisions:
+ *  1. English keys are bundled as a static JSON file (translation-keys.json).
+ *     This means the live server NEVER needs the Flutter ARB files present —
+ *     they are only needed locally when you add new keys and re-run the sync script.
+ *
+ *  2. Translation provider chain (tried in order, first success wins):
+ *       a. MyMemory  — free, 50k words/day with email param, works on most servers
+ *       b. LibreTranslate (public instance) — fully free, no key needed
+ *       c. Google free endpoint — works locally, often blocked on shared hosting
+ *     If ALL providers fail for a chunk, the original English value is kept as fallback.
  */
 
-import fs from 'fs';
+import fs   from 'fs';
 import path from 'path';
 import https from 'https';
+import http  from 'http';
 
-// Language code mapping for Google Translate
+// ── Language code mapping ──────────────────────────────────────────────────────
 const LANGUAGE_CODE_MAP: Record<string, string> = {
-  'en': 'en',
-  'hi': 'hi',
-  'gu': 'gu',
-  'mr': 'mr',
-  'pa': 'pa',
-  'es': 'es',
-  'fr': 'fr',
-  'de': 'de',
-  'it': 'it',
-  'pt': 'pt',
-  'ru': 'ru',
-  'ja': 'ja',
-  'ko': 'ko',
-  'zh': 'zh-CN',
-  'ar': 'ar',
-  'bn': 'bn',
-  'ta': 'ta',
-  'te': 'te',
-  'ml': 'ml',
-  'kn': 'kn',
+  en: 'en', hi: 'hi', gu: 'gu', mr: 'mr', pa: 'pa',
+  es: 'es', fr: 'fr', de: 'de', it: 'it', pt: 'pt',
+  ru: 'ru', ja: 'ja', ko: 'ko', zh: 'zh-CN',
+  ar: 'ar', bn: 'bn', ta: 'ta', te: 'te', ml: 'ml', kn: 'kn',
 };
 
-interface TranslationKey {
+// MyMemory uses slightly different codes for some languages
+const MYMEMORY_CODE_MAP: Record<string, string> = {
+  'zh-CN': 'zh-CN', 'zh': 'zh-CN',
+};
+function toMyMemoryCode(lang: string): string {
+  return MYMEMORY_CODE_MAP[lang] ?? lang;
+}
+
+export interface TranslationKey {
   key: string;
   value: string;
   category: string;
 }
 
-/**
- * Read English ARB file(s) and extract all translation keys.
- * Merges both Partner and Customer ARB files — Partner values take priority for shared keys.
- */
+// ── Static key source ──────────────────────────────────────────────────────────
+// Bundled JSON is the single source of truth on the live server.
+// Falls back to reading ARB files locally if the JSON somehow doesn't exist.
+const BUNDLED_KEYS_PATH = path.join(__dirname, 'translation-keys.json');
+
 export async function getEnglishTranslationKeys(): Promise<TranslationKey[]> {
+  // 1. Try bundled JSON first (always present on live server)
+  if (fs.existsSync(BUNDLED_KEYS_PATH)) {
+    try {
+      const raw  = fs.readFileSync(BUNDLED_KEYS_PATH, 'utf-8');
+      const data = JSON.parse(raw) as Record<string, string>;
+      const keys = Object.entries(data).map(([key, value]) => ({
+        key,
+        value,
+        category: 'general',
+      }));
+      console.log(`✅ Loaded ${keys.length} keys from bundled translation-keys.json`);
+      return keys;
+    } catch (err) {
+      console.warn('⚠️  Failed to parse bundled translation-keys.json, falling back to ARB files');
+    }
+  }
+
+  // 2. Fallback: read ARB files (works locally during development)
   const arbPaths = [
     path.join(process.cwd(), '../Work-Wala-Partner/lib/l10n/app_en.arb'),
     path.join(process.cwd(), '../Work-Wala-Customer/lib/l10n/app_en.arb'),
   ];
 
-  // Track category per-file so metadata keys don't bleed across files
   const mergedKeys = new Map<string, TranslationKey>();
 
   for (const arbFilePath of arbPaths) {
     if (!fs.existsSync(arbFilePath)) {
-      console.warn(`⚠️ ARB file not found, skipping: ${arbFilePath}`);
+      console.warn(`⚠️  ARB file not found, skipping: ${arbFilePath}`);
       continue;
     }
-
     try {
-      const fileContent = fs.readFileSync(arbFilePath, 'utf-8');
-      const arbData = JSON.parse(fileContent);
-      let currentCategory = 'general';
-
+      const arbData = JSON.parse(fs.readFileSync(arbFilePath, 'utf-8'));
       for (const [key, value] of Object.entries(arbData)) {
-        // Skip metadata keys
-        if (key.startsWith('@@') || key.startsWith('@')) {
-          if (key.startsWith('@@') && typeof value === 'string') {
-            const categoryMatch = value || key.replace(/@@/g, '').trim();
-            if (categoryMatch) {
-              currentCategory = categoryMatch.toLowerCase()
-                .replace(/[^a-z0-9]+/g, '_')
-                .replace(/^_|_$/g, '') || 'general';
-            }
-          }
-          continue;
-        }
-
-        // Only add if not already present (Partner takes priority)
+        if (key.startsWith('@')) continue;
         if (typeof value === 'string' && value.trim() && !mergedKeys.has(key)) {
-          mergedKeys.set(key, { key, value, category: currentCategory });
+          mergedKeys.set(key, { key, value, category: 'general' });
         }
       }
-
-      console.log(`✅ Read ${arbFilePath.split('/').pop()}: ${Object.keys(arbData).filter(k => !k.startsWith('@')).length} keys`);
-    } catch (error) {
-      console.error(`❌ Error reading ARB file ${arbFilePath}:`, error);
+      console.log(`✅ Read ${arbFilePath.split('/').pop()}`);
+    } catch (err) {
+      console.error(`❌ Error reading ARB file ${arbFilePath}:`, err);
     }
   }
 
   const keys = Array.from(mergedKeys.values());
-  console.log(`✅ Total merged translation keys: ${keys.length}`);
+  console.log(`✅ Total merged translation keys from ARB: ${keys.length}`);
   return keys;
 }
 
-/**
- * Translate a single text using MyMemory API (100% free, works on all servers, no API key needed)
- * Free tier: 10,000 words/day
- */
-async function translateViaMyMemory(text: string, targetLang: string): Promise<string> {
+// ── HTTP helper ────────────────────────────────────────────────────────────────
+function httpGet(url: string, timeoutMs = 8000): Promise<string> {
   return new Promise((resolve, reject) => {
-    const encodedText = encodeURIComponent(text);
-    // MyMemory uses "en|hi" format for language pair
-    const langPair = `en|${targetLang}`;
-    const url = `https://api.mymemory.translated.net/get?q=${encodedText}&langpair=${langPair}`;
-
-    https.get(url, (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        try {
-          if (res.statusCode !== 200) {
-            reject(new Error(`MyMemory HTTP ${res.statusCode}: ${data}`));
-            return;
-          }
-          const parsed = JSON.parse(data);
-          // responseStatus 200 means success
-          if (parsed?.responseStatus === 200 && parsed?.responseData?.translatedText) {
-            resolve(parsed.responseData.translatedText);
-          } else {
-            reject(new Error(`MyMemory error: ${parsed?.responseDetails || 'Unknown error'}`));
-          }
-        } catch (e) {
-          reject(e);
-        }
-      });
-    }).on('error', reject);
-  });
-}
-
-/**
- * Translate a single text using Google Translate free endpoint (works locally, may be blocked on servers)
- */
-async function translateViaGoogle(text: string, targetLang: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const encodedText = encodeURIComponent(text);
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodedText}`;
-
-    const options = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
+    const lib = url.startsWith('https') ? https : http;
+    const req = lib.get(url, (res) => {
+      if (res.statusCode && res.statusCode >= 400) {
+        reject(new Error(`HTTP ${res.statusCode}`));
+        res.resume();
+        return;
       }
-    };
-
-    https.get(url, options, (res) => {
       let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        try {
-          if (res.statusCode !== 200) {
-            reject(new Error(`Google HTTP ${res.statusCode}`));
-            return;
-          }
-          const parsed = JSON.parse(data);
-          if (parsed && parsed[0]) {
-            const translated = parsed[0].map((item: any) => item[0]).filter(Boolean).join('');
-            resolve(translated);
-          } else {
-            reject(new Error('Invalid Google response format'));
-          }
-        } catch (e) {
-          reject(e);
-        }
-      });
-    }).on('error', reject);
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => resolve(data));
+    });
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('Request timed out')); });
+    req.on('error', reject);
   });
 }
 
-/**
- * Internal: Translate text with automatic fallback:
- * 1. MyMemory API (free, works on all servers)
- * 2. Google Translate free endpoint (fallback, works locally)
- */
+function httpPost(url: string, body: string, headers: Record<string, string>, timeoutMs = 8000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const lib    = parsed.protocol === 'https:' ? https : http;
+    const opts   = {
+      hostname: parsed.hostname,
+      port:     parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+      path:     parsed.pathname + parsed.search,
+      method:   'POST',
+      headers:  { 'Content-Length': Buffer.byteLength(body), ...headers },
+    };
+    const req = lib.request(opts, (res) => {
+      if (res.statusCode && res.statusCode >= 400) {
+        reject(new Error(`HTTP ${res.statusCode}`));
+        res.resume();
+        return;
+      }
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => resolve(data));
+    });
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('Request timed out')); });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+// ── Provider A: MyMemory ───────────────────────────────────────────────────────
+// Free tier: 10k words/day anonymous, 50k words/day with email param.
+// Docs: https://mymemory.translated.net/doc/spec.php
+async function translateViaMyMemory(text: string, targetLang: string): Promise<string> {
+  const lang = toMyMemoryCode(targetLang);
+  const url  = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${lang}&de=support@joinlinko.com`;
+  const raw  = await httpGet(url, 8000);
+  const parsed = JSON.parse(raw);
+  if (parsed?.responseStatus === 200 && parsed?.responseData?.translatedText) {
+    return parsed.responseData.translatedText;
+  }
+  throw new Error(`MyMemory: status ${parsed?.responseStatus} — ${parsed?.responseDetails ?? 'unknown'}`);
+}
+
+// ── Provider B: LibreTranslate (public instance) ───────────────────────────────
+// Completely free, no key needed on the public instance.
+// Docs: https://libretranslate.com/docs
+const LIBRE_INSTANCES = [
+  'https://libretranslate.com',
+  'https://translate.argosopentech.com',
+  'https://libretranslate.de',
+];
+
+async function translateViaLibreTranslate(text: string, targetLang: string): Promise<string> {
+  // LibreTranslate uses simple 2-letter codes; strip region suffix
+  const lang = targetLang.split('-')[0];
+  const body = JSON.stringify({ q: text, source: 'en', target: lang, format: 'text' });
+  const headers = { 'Content-Type': 'application/json' };
+
+  for (const instance of LIBRE_INSTANCES) {
+    try {
+      const raw    = await httpPost(`${instance}/translate`, body, headers, 8000);
+      const parsed = JSON.parse(raw);
+      if (parsed?.translatedText) return parsed.translatedText;
+    } catch {
+      // try next instance
+    }
+  }
+  throw new Error('LibreTranslate: all instances failed');
+}
+
+// ── Provider C: Google free endpoint ──────────────────────────────────────────
+// Works reliably locally; often blocked on shared hosting.
+async function translateViaGoogle(text: string, targetLang: string): Promise<string> {
+  const url  = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+  const raw  = await httpGet(url, 8000);
+  const parsed = JSON.parse(raw);
+  if (parsed?.[0]) {
+    const translated = (parsed[0] as any[]).map((item: any) => item?.[0]).filter(Boolean).join('');
+    if (translated) return translated;
+  }
+  throw new Error('Google: invalid response format');
+}
+
+// ── Provider chain ─────────────────────────────────────────────────────────────
 async function doTranslate(text: string, targetLang: string): Promise<string> {
-  // Try MyMemory first — free, no key, works on live servers
-  try {
-    const result = await translateViaMyMemory(text, targetLang);
-    console.log(`✅ MyMemory translation successful`);
-    return result;
-  } catch (error) {
-    console.warn(`⚠️ MyMemory failed: ${error instanceof Error ? error.message : error}. Trying Google...`);
+  const providers: Array<{ name: string; fn: () => Promise<string> }> = [
+    { name: 'MyMemory',       fn: () => translateViaMyMemory(text, targetLang)       },
+    { name: 'LibreTranslate', fn: () => translateViaLibreTranslate(text, targetLang) },
+    { name: 'Google',         fn: () => translateViaGoogle(text, targetLang)         },
+  ];
+
+  for (const { name, fn } of providers) {
+    try {
+      const result = await fn();
+      console.log(`✅ [${name}] translated successfully`);
+      return result;
+    } catch (err) {
+      console.warn(`⚠️  [${name}] failed: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
-  // Fallback to Google free endpoint (works locally)
-  const result = await translateViaGoogle(text, targetLang);
-  console.log(`✅ Google translation successful`);
-  return result;
+  throw new Error(`All translation providers failed for lang="${targetLang}"`);
 }
 
-/**
- * Translate ALL keys by batching into small chunks (MyMemory has a 500 char limit per request)
- */
+// ── Batch translate all keys ───────────────────────────────────────────────────
+// MyMemory has a ~500 char limit per request, so we batch keys into small chunks.
 export async function translateAllKeysAtOnce(
   keys: TranslationKey[],
   targetLanguage: string,
   onProgress?: (current: number, total: number) => void
 ): Promise<Map<string, string>> {
   const translations = new Map<string, string>();
-  const targetLang = LANGUAGE_CODE_MAP[targetLanguage] || targetLanguage;
+  const targetLang   = LANGUAGE_CODE_MAP[targetLanguage] ?? targetLanguage;
 
-  console.log(`🌐 Starting translation of ${keys.length} keys to ${targetLanguage}...`);
+  console.log(`\n${'─'.repeat(60)}`);
+  console.log(`🌐 Translating ${keys.length} keys → ${targetLanguage} (${targetLang})`);
+  console.log(`${'─'.repeat(60)}`);
 
-  // MyMemory has a ~500 char limit per request, so we batch keys into chunks
-  const CHUNK_SIZE = 5; // translate 5 keys at a time joined by newline
-  let successCount = 0;
-  let failCount = 0;
+  const CHUNK_SIZE  = 5;   // 5 values joined by newline — stays well under 500 chars
+  let successCount  = 0;
+  let fallbackCount = 0;
 
   for (let i = 0; i < keys.length; i += CHUNK_SIZE) {
-    const chunk = keys.slice(i, i + CHUNK_SIZE);
-    const combinedText = chunk.map(k => k.value).join('\n');
+    const chunk        = keys.slice(i, i + CHUNK_SIZE);
+    const combinedText = chunk.map((k) => k.value).join('\n');
 
     try {
-      const result = await doTranslate(combinedText, targetLang);
-      const translatedLines = result.split('\n');
+      const result           = await doTranslate(combinedText, targetLang);
+      const translatedLines  = result.split('\n');
 
       chunk.forEach((item, idx) => {
         const translated = translatedLines[idx]?.trim();
@@ -221,87 +249,70 @@ export async function translateAllKeysAtOnce(
           translations.set(item.key, translated);
           successCount++;
         } else {
-          // Fallback to original English value
+          // Line missing in response — keep English
           translations.set(item.key, item.value);
-          failCount++;
+          fallbackCount++;
         }
       });
-    } catch (error) {
-      console.error(`❌ Chunk ${i}-${i + CHUNK_SIZE} failed:`, error instanceof Error ? error.message : error);
-      // Fallback: keep original English values for this chunk
-      chunk.forEach(item => {
+    } catch {
+      // Entire chunk failed — keep English values
+      chunk.forEach((item) => {
         translations.set(item.key, item.value);
-        failCount++;
+        fallbackCount++;
       });
     }
 
-    // Small delay between chunks to avoid rate limiting
+    // Small delay between chunks to respect rate limits
     if (i + CHUNK_SIZE < keys.length) {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((r) => setTimeout(r, 300));
     }
 
-    if (onProgress) {
-      onProgress(Math.min(i + CHUNK_SIZE, keys.length), keys.length);
-    }
+    if (onProgress) onProgress(Math.min(i + CHUNK_SIZE, keys.length), keys.length);
 
-    // Log progress every 50 keys
-    if ((i + CHUNK_SIZE) % 50 === 0 || i + CHUNK_SIZE >= keys.length) {
-      console.log(`📊 Progress: ${Math.min(i + CHUNK_SIZE, keys.length)}/${keys.length} keys`);
+    if ((i / CHUNK_SIZE + 1) % 10 === 0 || i + CHUNK_SIZE >= keys.length) {
+      console.log(`   📊 ${Math.min(i + CHUNK_SIZE, keys.length)}/${keys.length} keys processed`);
     }
   }
 
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`✅ Translation completed!`);
-  console.log(`   Total: ${translations.size} | Success: ${successCount} | Fallback: ${failCount}`);
-  console.log(`${'='.repeat(60)}\n`);
-
+  console.log(`\n✅ Translation done — success: ${successCount}, fallback to EN: ${fallbackCount}`);
   return translations;
 }
 
-/**
- * Translate a single text string to a target language.
- * Used by the test endpoint and migration scripts.
- */
+// ── Single-text helper (used by test endpoint) ─────────────────────────────────
 export async function translateText(text: string, targetLanguage: string): Promise<string> {
-  const targetLang = LANGUAGE_CODE_MAP[targetLanguage] || targetLanguage;
+  const targetLang = LANGUAGE_CODE_MAP[targetLanguage] ?? targetLanguage;
   return doTranslate(text, targetLang);
 }
 
-/**
- * Batch insert translations into database
- */
+// ── DB insert helper ───────────────────────────────────────────────────────────
 export async function batchInsertTranslations(
   pool: any,
   languageCode: string,
   keys: TranslationKey[],
   translations: Map<string, string>
 ): Promise<void> {
-  try {
-    console.log(`💾 Inserting ${keys.length} translations for ${languageCode}...`);
+  if (keys.length === 0) return;
 
-    const values: any[] = [];
-    const placeholders: string[] = [];
+  console.log(`💾 Inserting ${keys.length} translations for "${languageCode}"…`);
 
-    keys.forEach((item) => {
-      const translatedValue = translations.get(item.key) || item.value;
-      placeholders.push('(?, ?, ?, ?)');
-      values.push(languageCode, item.key, translatedValue, item.category);
-    });
+  const values: any[]       = [];
+  const placeholders: string[] = [];
 
-    const query = `
-      INSERT INTO translations (language_code, translation_key, translation_value, category)
-      VALUES ${placeholders.join(', ')}
-      ON DUPLICATE KEY UPDATE
-        translation_value = VALUES(translation_value),
-        category = VALUES(category),
-        updated_at = NOW()
-    `;
+  keys.forEach((item) => {
+    const translatedValue = translations.get(item.key) ?? item.value;
+    placeholders.push('(?, ?, ?, ?)');
+    values.push(languageCode, item.key, translatedValue, item.category);
+  });
 
-    await pool.query(query, values);
-    console.log(`✅ Successfully inserted/updated ${keys.length} translations`);
+  await pool.query(
+    `INSERT INTO translations (language_code, translation_key, translation_value, category)
+     VALUES ${placeholders.join(', ')}
+     ON DUPLICATE KEY UPDATE
+       translation_value = VALUES(translation_value),
+       category          = VALUES(category),
+       updated_at        = NOW()`,
+    values
+  );
 
-  } catch (error) {
-    console.error('❌ Error inserting translations:', error);
-    throw new Error('Failed to insert translations into database');
-  }
+  console.log(`✅ Inserted/updated ${keys.length} translations for "${languageCode}"`);
 }

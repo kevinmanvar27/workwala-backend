@@ -57,6 +57,11 @@ const MIGRATIONS = [
     name: 'seed_pages',
     file: 'migrate_seed_pages.js',
     description: 'Seed all 5 default pages (Help & Support, About, About Us, Privacy Policy, Terms of Service)'
+  },
+  {
+    name: 'seed_translations',
+    file: 'migrate_seed_translations.js',
+    description: 'Seed all 550 translation keys for every language — English values as baseline, auto-translate fills the rest'
   }
 ];
 
