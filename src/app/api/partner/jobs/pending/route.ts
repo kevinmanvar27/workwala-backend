@@ -59,13 +59,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, job: null });
     }
 
-    // Parse partner's registered service categories (e.g. ["Driver","Cooking"])
+    // Parse partner's registered service categories
+    // Handle both formats: JSON array ["Driver","Cooking"] OR comma-separated string "Driver,Cooking"
     let partnerCategories: string[] = [];
     try {
-      partnerCategories = JSON.parse(partner.categories || '[]');
-    } catch {
+      if (!partner.categories) {
+        partnerCategories = [];
+      } else if (partner.categories.trim().startsWith('[')) {
+        // JSON array format: ["Driver","Cooking"]
+        partnerCategories = JSON.parse(partner.categories);
+      } else {
+        // Comma-separated string format: "Driver,Cooking"
+        partnerCategories = partner.categories.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+      }
+    } catch (err) {
+      console.log(`⚠️  [PENDING JOBS] Failed to parse categories: ${err}`);
       partnerCategories = [];
     }
+
+    console.log(`📋 [PENDING JOBS] Parsed categories array: [${partnerCategories.join(', ')}]`);
 
     if (partnerCategories.length === 0) {
       console.log('❌ [PENDING JOBS] Partner has no registered categories');

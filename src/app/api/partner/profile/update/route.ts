@@ -217,7 +217,20 @@ export async function POST(req: NextRequest) {
         phone: partner.phone,
         gender: partner.gender,
         language: partner.language,
-        categories: (() => { try { return JSON.parse(partner.categories || '[]'); } catch { return []; } })(),
+        categories: (() => { 
+          try { 
+            if (!partner.categories) return [];
+            if (partner.categories.trim().startsWith('[')) {
+              // JSON array format
+              return JSON.parse(partner.categories);
+            } else {
+              // Comma-separated string format
+              return partner.categories.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+            }
+          } catch { 
+            return []; 
+          } 
+        })(),
         team_option: partner.team_option,
         vehicle_type: partner.vehicle_type,
         status: partner.status,
