@@ -137,8 +137,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Payment successful! Wallet credited.',
-      amount: topup.amount,
-      new_balance: partner?.balance || 0,
+      amount: Number(topup.amount),
+      new_balance: Number(partner?.balance || 0),
     });
   } catch (err) {
     console.error('Verify topup payment error:', err);

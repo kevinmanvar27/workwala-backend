@@ -151,9 +151,15 @@ export async function GET(req: NextRequest) {
       [payload.userId]
     );
 
+    // Convert amount to number for Flutter compatibility
+    const formattedRequests = requests.map(r => ({
+      ...r,
+      amount: Number(r.amount),
+    }));
+
     return NextResponse.json({ 
       success: true, 
-      requests 
+      requests: formattedRequests 
     });
 
   } catch (err) {
