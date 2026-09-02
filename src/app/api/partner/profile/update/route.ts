@@ -33,6 +33,12 @@ export async function POST(req: NextRequest) {
       vehicleType,
     });
 
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('💾 [BACKEND] Updating partner profile');
+    console.log(`   Partner ID: ${payload.userId}`);
+    console.log(`   Categories received: ${categories}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
     // Update partner basic info
     await query(
       `UPDATE partners 
@@ -46,6 +52,8 @@ export async function POST(req: NextRequest) {
        WHERE id = ? AND deleted_at IS NULL`,
       [name, gender, language, categories, teamOption, vehicleType, payload.userId]
     );
+
+    console.log('✅ [BACKEND] Partner profile updated in database');
 
     // Handle document uploads
     const uploadDir = join(process.cwd(), 'public', 'uploads', 'partners', String(payload.userId));
@@ -187,6 +195,13 @@ export async function POST(req: NextRequest) {
 
     const partner = partners[0];
 
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📊 [BACKEND] Fetched updated profile from database');
+    console.log(`   Partner ID: ${partner.id}`);
+    console.log(`   Categories from DB: ${partner.categories}`);
+    console.log(`   Categories type: ${typeof partner.categories}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
     // Get document URLs
     const docs = await query<{
       id_front: string | null;
@@ -222,12 +237,17 @@ export async function POST(req: NextRequest) {
             if (!partner.categories) return [];
             if (partner.categories.trim().startsWith('[')) {
               // JSON array format
-              return JSON.parse(partner.categories);
+              const parsed = JSON.parse(partner.categories);
+              console.log(`✅ [BACKEND] Parsed categories as JSON array: ${JSON.stringify(parsed)}`);
+              return parsed;
             } else {
               // Comma-separated string format
-              return partner.categories.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+              const parsed = partner.categories.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+              console.log(`✅ [BACKEND] Parsed categories as CSV: ${JSON.stringify(parsed)}`);
+              return parsed;
             }
-          } catch { 
+          } catch (err) { 
+            console.log(`❌ [BACKEND] Failed to parse categories: ${err}`);
             return []; 
           } 
         })(),
