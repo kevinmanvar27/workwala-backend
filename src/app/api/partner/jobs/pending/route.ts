@@ -60,17 +60,32 @@ export async function GET(req: NextRequest) {
     }
 
     // Parse partner's registered service categories
-    // Handle both formats: JSON array ["Driver","Cooking"] OR comma-separated string "Driver,Cooking"
+    // Handle multiple formats: JSON array, object, or comma-separated string
     let partnerCategories: string[] = [];
     try {
       if (!partner.categories) {
         partnerCategories = [];
-      } else if (partner.categories.trim().startsWith('[')) {
-        // JSON array format: ["Driver","Cooking"]
-        partnerCategories = JSON.parse(partner.categories);
-      } else {
-        // Comma-separated string format: "Driver,Cooking"
-        partnerCategories = partner.categories.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+      } else if (typeof partner.categories === 'string') {
+        // String format - could be JSON or comma-separated
+        const trimmed = partner.categories.trim();
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+          // JSON format: ["Driver","Cooking"] or {"0":"Driver","1":"Cooking"}
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            partnerCategories = parsed;
+          } else if (typeof parsed === 'object') {
+            partnerCategories = Object.values(parsed);
+          }
+        } else {
+          // Comma-separated string format: "Driver,Cooking"
+          partnerCategories = trimmed.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+        }
+      } else if (Array.isArray(partner.categories)) {
+        // Already an array
+        partnerCategories = partner.categories;
+      } else if (typeof partner.categories === 'object') {
+        // Object format: {0: "Driver", 1: "Cooking"}
+        partnerCategories = Object.values(partner.categories);
       }
     } catch (err) {
       console.log(`⚠️  [PENDING JOBS] Failed to parse categories: ${err}`);

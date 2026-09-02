@@ -235,17 +235,39 @@ export async function POST(req: NextRequest) {
         categories: (() => { 
           try { 
             if (!partner.categories) return [];
-            if (partner.categories.trim().startsWith('[')) {
-              // JSON array format
-              const parsed = JSON.parse(partner.categories);
-              console.log(`✅ [BACKEND] Parsed categories as JSON array: ${JSON.stringify(parsed)}`);
-              return parsed;
-            } else {
-              // Comma-separated string format
-              const parsed = partner.categories.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
-              console.log(`✅ [BACKEND] Parsed categories as CSV: ${JSON.stringify(parsed)}`);
-              return parsed;
+            
+            // Handle different category formats
+            if (typeof partner.categories === 'string') {
+              const trimmed = partner.categories.trim();
+              if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+                // JSON format: ["Driver","Cooking"] or {"0":"Driver","1":"Cooking"}
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                  console.log(`✅ [BACKEND] Parsed categories as JSON array: ${JSON.stringify(parsed)}`);
+                  return parsed;
+                } else if (typeof parsed === 'object') {
+                  const values = Object.values(parsed);
+                  console.log(`✅ [BACKEND] Parsed categories as JSON object: ${JSON.stringify(values)}`);
+                  return values;
+                }
+              } else {
+                // Comma-separated string format
+                const parsed = trimmed.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+                console.log(`✅ [BACKEND] Parsed categories as CSV: ${JSON.stringify(parsed)}`);
+                return parsed;
+              }
+            } else if (Array.isArray(partner.categories)) {
+              // Already an array
+              console.log(`✅ [BACKEND] Categories already an array: ${JSON.stringify(partner.categories)}`);
+              return partner.categories;
+            } else if (typeof partner.categories === 'object') {
+              // Object format: {0: "Driver", 1: "Cooking"}
+              const values = Object.values(partner.categories);
+              console.log(`✅ [BACKEND] Parsed categories from object: ${JSON.stringify(values)}`);
+              return values;
             }
+            
+            return [];
           } catch (err) { 
             console.log(`❌ [BACKEND] Failed to parse categories: ${err}`);
             return []; 

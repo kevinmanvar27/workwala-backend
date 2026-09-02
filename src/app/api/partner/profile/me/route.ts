@@ -93,13 +93,31 @@ export async function GET(req: NextRequest) {
       categories:      (() => { 
         try { 
           if (!partner.categories) return [];
-          if (partner.categories.trim().startsWith('[')) {
-            // JSON array format
-            return JSON.parse(partner.categories);
-          } else {
-            // Comma-separated string format
-            return partner.categories.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+          
+          // Handle different category formats
+          if (typeof partner.categories === 'string') {
+            const trimmed = partner.categories.trim();
+            if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+              // JSON format: ["Driver","Cooking"] or {"0":"Driver","1":"Cooking"}
+              const parsed = JSON.parse(trimmed);
+              if (Array.isArray(parsed)) {
+                return parsed;
+              } else if (typeof parsed === 'object') {
+                return Object.values(parsed);
+              }
+            } else {
+              // Comma-separated string format
+              return trimmed.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+            }
+          } else if (Array.isArray(partner.categories)) {
+            // Already an array
+            return partner.categories;
+          } else if (typeof partner.categories === 'object') {
+            // Object format: {0: "Driver", 1: "Cooking"}
+            return Object.values(partner.categories);
           }
+          
+          return [];
         } catch { 
           return []; 
         } 
