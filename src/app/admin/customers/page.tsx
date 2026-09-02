@@ -524,9 +524,13 @@ export default function CustomersPage() {
                   <input
                     type="tel"
                     value={editForm.phone}
-                    onChange={(e) => setEditForm((f) => f ? { ...f, phone: e.target.value } : f)}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setEditForm((f) => f ? { ...f, phone: value } : f);
+                    }}
                     placeholder="10-digit mobile number"
-                    maxLength={15}
+                    maxLength={10}
+                    pattern="[0-9]{10}"
                     className="w-full pl-9 pr-3 py-2.5 border border-[#E0E0E0] rounded-xl text-sm text-[#2D2D2D] placeholder-[#bdbdbd] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all"
                   />
                 </div>
