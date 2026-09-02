@@ -118,6 +118,31 @@ const EXPECTED_SCHEMA = {
     ],
   },
 
+  // Wallet topups table
+  wallet_topups: {
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      partner_id: 'INT NOT NULL',
+      amount: 'DECIMAL(10,2) NOT NULL',
+      razorpay_order_id: 'VARCHAR(100) NULL',
+      razorpay_payment_id: 'VARCHAR(100) NULL',
+      razorpay_signature: 'VARCHAR(500) NULL',
+      status: "ENUM('pending','completed','failed') DEFAULT 'pending'",
+      failure_reason: 'VARCHAR(500) NULL',
+      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      completed_at: 'TIMESTAMP NULL',
+    },
+    indexes: [
+      'UNIQUE KEY razorpay_order_id (razorpay_order_id)',
+      'INDEX idx_partner_id (partner_id)',
+      'INDEX idx_status (status)',
+      'INDEX idx_razorpay_order_id (razorpay_order_id)',
+    ],
+    foreignKeys: [
+      'FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE',
+    ],
+  },
+
   // Bookings table - ensure fees_deducted column exists
   bookings: {
     columns: {
