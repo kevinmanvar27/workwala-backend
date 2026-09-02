@@ -173,22 +173,45 @@ export async function calculatePendingFees(partnerId: number): Promise<{
 
   transactions.forEach((t, index) => {
     if (t.metadata) {
-      const meta = JSON.parse(t.metadata);
-      console.log(`📋 Transaction ${index + 1} (Booking #${t.reference_id}):`, meta);
-      
-      // Check if fees are pending:
-      // 1. New transactions have fees_pending flag set to true
-      // 2. Old transactions don't have the flag, so check if fees were already deducted
-      const hasFeesPending = meta.fees_pending === true || 
-                            (meta.fees_pending === undefined && !deductedBookingIds.has(t.reference_id));
-      
-      if (hasFeesPending) {
-        platformFees += meta.platform_fee || 0;
-        taskFees += meta.task_fee || 0;
-        grossEarnings += meta.total_amount || 0;
-        console.log(`✅ Added to pending: Platform=${meta.platform_fee}, Task=${meta.task_fee}, Total=${meta.total_amount}`);
-      } else {
-        console.log(`⏭️  Skipped (fees already deducted or fees_pending=false)`);
+      try {
+        // Handle both string and object metadata
+        let meta;
+        if (typeof t.metadata === 'string') {
+          // Check if it's valid JSON string
+          if (t.metadata.startsWith('{') || t.metadata.startsWith('[')) {
+            meta = JSON.parse(t.metadata);
+          } else {
+            console.log(`⚠️  Transaction ${index + 1}: Invalid JSON metadata: "${t.metadata}"`);
+            return; // Skip this transaction
+          }
+        } else if (typeof t.metadata === 'object') {
+          meta = t.metadata; // Already an object
+        } else {
+          console.log(`⚠️  Transaction ${index + 1}: Unknown metadata type: ${typeof t.metadata}`);
+          return; // Skip this transaction
+        }
+
+        console.log(`📋 Transaction ${index + 1} (Booking #${t.reference_id}):`, meta);
+        
+        // Check if fees are pending:
+        // 1. New transactions have fees_pending flag set to true
+        // 2. Old transactions don't have the flag, so check if fees were already deducted
+        const hasFeesPending = meta.fees_pending === true || 
+                              (meta.fees_pending === undefined && !deductedBookingIds.has(t.reference_id));
+        
+        if (hasFeesPending) {
+          platformFees += meta.platform_fee || 0;
+          taskFees += meta.task_fee || 0;
+          grossEarnings += meta.total_amount || 0;
+          console.log(`✅ Added to pending: Platform=${meta.platform_fee}, Task=${meta.task_fee}, Total=${meta.total_amount}`);
+        } else {
+          console.log(`⏭️  Skipped (fees already deducted or fees_pending=false)`);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`❌ Transaction ${index + 1}: Failed to parse metadata:`, errorMessage);
+        console.log(`   Raw metadata: "${t.metadata}"`);
+        // Skip this transaction and continue
       }
     }
   });
