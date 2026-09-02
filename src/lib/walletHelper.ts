@@ -287,6 +287,8 @@ export async function recordWalletTransaction(
     metadata?: any;
   } = {}
 ): Promise<void> {
+  console.log(`🔹 [recordWalletTransaction] Type: ${type}, Amount: ₹${amount}, Partner: ${partnerId}`);
+  
   // Get current balance
   const [partner] = await query<{ balance: number }[]>(
     `SELECT balance FROM partners WHERE id = ?`,
@@ -294,6 +296,7 @@ export async function recordWalletTransaction(
   );
 
   if (!partner) {
+    console.error(`❌ [recordWalletTransaction] Partner ${partnerId} not found!`);
     throw new Error('Partner not found');
   }
 
@@ -301,6 +304,8 @@ export async function recordWalletTransaction(
   // so arithmetic without Number() causes string concatenation (e.g. -160 + "360" = "-160360")
   const balanceBefore = Number(partner.balance ?? 0);
   const amountNum     = Number(amount);
+  
+  console.log(`📊 [recordWalletTransaction] Balance before: ₹${balanceBefore}`);
 
   // Calculate new balance based on transaction type
   let balanceAfter = balanceBefore;
@@ -309,6 +314,8 @@ export async function recordWalletTransaction(
   } else if (type === 'fee_deduction' || type === 'withdrawal' || type === 'penalty') {
     balanceAfter = balanceBefore - amountNum;
   }
+  
+  console.log(`📊 [recordWalletTransaction] Balance after: ₹${balanceAfter}`);
 
   // Record transaction
   await query(
@@ -328,12 +335,16 @@ export async function recordWalletTransaction(
       options.metadata ? JSON.stringify(options.metadata) : null,
     ]
   );
+  
+  console.log(`✅ [recordWalletTransaction] Transaction recorded in wallet_transactions table`);
 
   // Update partner balance
   await query(
     `UPDATE partners SET balance = ? WHERE id = ?`,
     [balanceAfter, partnerId]
   );
+  
+  console.log(`✅ [recordWalletTransaction] Partner balance updated: ${balanceBefore} → ${balanceAfter}`);
 }
 
 // ============================================================================
@@ -346,9 +357,18 @@ export async function creditPartnerWallet(
   totalAmount: number,
   paymentMethod: 'online' | 'cash'
 ): Promise<{ success: boolean; newBalance: number; fees: FeeCalculation }> {
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('💰 [WALLET] creditPartnerWallet() called');
+  console.log(`📋 Partner ID: ${partnerId}`);
+  console.log(`📋 Booking ID: ${bookingId}`);
+  console.log(`📋 Total Amount: ₹${totalAmount}`);
+  console.log(`📋 Payment Method: ${paymentMethod}`);
+  
   const fees = await calculateTaskFees(totalAmount);
+  console.log(`📋 Calculated Fees:`, fees);
 
   if (paymentMethod === 'cash') {
+    console.log('💵 [WALLET] CASH payment - deducting fees immediately');
     // CASH PAYMENT: Partner already collected money from customer
     // Deduct fees immediately (wallet goes NEGATIVE)
     // Partner owes admin these fees and must pay via Razorpay topup
@@ -372,7 +392,9 @@ export async function creditPartnerWallet(
         },
       }
     );
+    console.log(`✅ [WALLET] Cash fee deduction recorded: ₹${fees.totalFee}`);
   } else {
+    console.log('💳 [WALLET] ONLINE payment - crediting full amount (fees deducted at withdrawal)');
     // ONLINE PAYMENT: Admin received money in Razorpay
     // Credit FULL amount to wallet (fees deducted at withdrawal time)
     await recordWalletTransaction(
@@ -393,9 +415,12 @@ export async function creditPartnerWallet(
         },
       }
     );
+    console.log(`✅ [WALLET] Online payment credited: ₹${totalAmount} (fees pending)`);
   }
 
   const balance = await getPartnerWalletBalance(partnerId);
+  console.log(`📊 [WALLET] New balance: ₹${balance.totalBalance}`);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   return {
     success: true,

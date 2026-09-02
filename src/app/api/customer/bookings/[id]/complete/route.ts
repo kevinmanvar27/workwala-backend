@@ -195,14 +195,26 @@ export async function POST(
     // ── Credit partner earnings ───────────────────────────────────────────────
     // Use wallet system to properly handle fees and balance tracking
     if (booking.partner_id) {
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(`💰 [COMPLETE] Crediting partner wallet for booking #${bookingId}`);
+      console.log(`📋 Partner ID: ${booking.partner_id}`);
+      console.log(`📋 Total Price: ₹${totalPrice}`);
+      console.log(`📋 Payment Method: ${paymentMethod}`);
+      
       try {
         const paymentType = paymentMethod === 'Cash' ? 'cash' : 'online';
+        console.log(`📋 Calling creditPartnerWallet() with paymentType: ${paymentType}`);
+        
         const walletResult = await creditPartnerWallet(
           booking.partner_id,
           bookingId,
           totalPrice,
           paymentType
         );
+
+        console.log(`✅ [COMPLETE] Wallet credited successfully:`, walletResult);
+        console.log(`📊 [COMPLETE] New partner balance: ₹${walletResult.newBalance}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
         console.log(`[WALLET] Partner ${booking.partner_id} credited: ${paymentType} payment`, walletResult);
 
@@ -223,9 +235,13 @@ export async function POST(
           );
         }
       } catch (walletError) {
-        console.error('[WALLET] Error crediting partner:', walletError);
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error('❌ [COMPLETE] Error crediting partner wallet:', walletError);
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         // Non-fatal — don't fail the payment confirmation
       }
+    } else {
+      console.log('⚠️ [COMPLETE] No partner_id found for booking, skipping wallet credit');
     }
 
     // Send push notifications about booking completion
