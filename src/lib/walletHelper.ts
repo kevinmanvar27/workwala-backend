@@ -522,6 +522,8 @@ export async function getWalletTransactions(
     
     return {
       ...t,
+      amount: Number(t.amount),
+      balance_after: Number(t.balance_after),
       metadata: parsedMetadata,
     };
   });
