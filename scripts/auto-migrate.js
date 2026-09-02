@@ -15,7 +15,15 @@ const { spawn } = require('child_process');
 
 // Load the correct env file based on NODE_ENV
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
-require('dotenv').config({ path: path.resolve(process.cwd(), envFile) });
+const envPath = path.resolve(process.cwd(), envFile);
+
+// Only load .env file if it exists (production might use environment variables directly)
+if (require('fs').existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+  console.log(`📋 Loaded environment from: ${envFile}`);
+} else {
+  console.log(`📋 Using system environment variables (${envFile} not found)`);
+}
 
 const DB_CONFIG = {
   host: process.env.DB_HOST || 'localhost',
@@ -62,6 +70,11 @@ const MIGRATIONS = [
     name: 'seed_translations',
     file: 'migrate_seed_translations.js',
     description: 'Seed all 550 translation keys for every language — English values as baseline, auto-translate fills the rest'
+  },
+  {
+    name: 'wallet_transactions',
+    file: 'migrate_wallet_transactions.js',
+    description: 'Create wallet_transactions table for partner wallet system (earnings, fees, withdrawals, topups)'
   }
 ];
 

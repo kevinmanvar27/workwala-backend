@@ -14,9 +14,19 @@
 
 const mysql = require('mysql2/promise');
 const path  = require('path');
+const fs = require('fs');
 
+// Load environment variables
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
-require('dotenv').config({ path: path.resolve(process.cwd(), envFile) });
+const envPath = path.resolve(process.cwd(), envFile);
+
+// Only load .env file if it exists (production might use environment variables directly)
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+} else {
+  // In production on Hostinger, environment variables are set directly
+  require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
+}
 
 const DB_CONFIG = {
   host:     process.env.DB_HOST     || 'localhost',
