@@ -1,14 +1,13 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * COMPREHENSIVE AUTO-MIGRATION SCRIPT
+ * AUTO-MIGRATION SCRIPT FOR PRODUCTION DEPLOYMENT
  * ═══════════════════════════════════════════════════════════════════════════
  * 
- * Purpose: Mirror local database structure to production EXACTLY
- * - Compares local vs production database schemas
- * - Creates missing tables with complete structure
- * - Adds missing columns with exact data types, defaults, and constraints
- * - Preserves all existing data (100% safe)
- * - Handles ENUMs, JSON, DECIMAL, foreign keys, indexes, etc.
+ * Purpose: Automatically sync database schema between local and production
+ * - Checks for missing tables and creates them with complete schema
+ * - Checks for missing columns in existing tables and adds them
+ * - Safe operations: Uses IF NOT EXISTS, doesn't modify existing data
+ * - Runs automatically during deployment via package.json build script
  * 
  * Usage:
  * - Automatic: Runs during `npm run build` before Next.js build
@@ -19,7 +18,6 @@
 
 const mysql = require('mysql2/promise');
 const path = require('path');
-const fs = require('fs');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ENVIRONMENT & DATABASE CONFIGURATION
@@ -28,7 +26,7 @@ const fs = require('fs');
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
 const envPath = path.resolve(process.cwd(), envFile);
 
-if (fs.existsSync(envPath)) {
+if (require('fs').existsSync(envPath)) {
   require('dotenv').config({ path: envPath });
   console.log(`📋 Loaded environment from: ${envFile}`);
 } else {
@@ -42,6 +40,217 @@ const DB_CONFIG = {
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'linko',
   multipleStatements: true,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPLETE DATABASE SCHEMA DEFINITION
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SCHEMA = {
+  // ─────────────────────────────────────────────────────────────────────────
+  // WALLET TOPUPS TABLE (MISSING IN PRODUCTION)
+  // ─────────────────────────────────────────────────────────────────────────
+  wallet_topups: {
+    createTable: `
+      CREATE TABLE IF NOT EXISTS wallet_topups (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        partner_id INT NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        razorpay_order_id VARCHAR(100) NULL,
+        razorpay_payment_id VARCHAR(100) NULL,
+        razorpay_signature VARCHAR(500) NULL,
+        status ENUM('pending','completed','failed') DEFAULT 'pending',
+        failure_reason VARCHAR(500) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL,
+        UNIQUE KEY razorpay_order_id (razorpay_order_id),
+        INDEX idx_partner_id (partner_id),
+        INDEX idx_status (status),
+        FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `,
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      partner_id: 'INT NOT NULL',
+      amount: 'DECIMAL(10,2) NOT NULL',
+      razorpay_order_id: 'VARCHAR(100) NULL',
+      razorpay_payment_id: 'VARCHAR(100) NULL',
+      razorpay_signature: 'VARCHAR(500) NULL',
+      status: "ENUM('pending','completed','failed') DEFAULT 'pending'",
+      failure_reason: 'VARCHAR(500) NULL',
+      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      completed_at: 'TIMESTAMP NULL',
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // WALLET TRANSACTIONS TABLE
+  // ─────────────────────────────────────────────────────────────────────────
+  wallet_transactions: {
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      partner_id: 'INT NOT NULL',
+      type: "ENUM('earning','fee','withdrawal','topup','refund','adjustment') NOT NULL",
+      amount: 'DECIMAL(10,2) NOT NULL',
+      description: 'VARCHAR(500) NULL',
+      payment_method: "ENUM('cash','online','wallet') NULL",
+      balance_after: 'DECIMAL(10,2) NOT NULL',
+      metadata: 'JSON NULL',
+      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // WITHDRAWAL REQUESTS TABLE
+  // ─────────────────────────────────────────────────────────────────────────
+  withdrawal_requests: {
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      partner_id: 'INT NOT NULL',
+      amount: 'DECIMAL(10,2) NOT NULL',
+      gross_amount: 'DECIMAL(10,2) DEFAULT 0',
+      platform_fee: 'DECIMAL(10,2) DEFAULT 0',
+      task_fee: 'DECIMAL(10,2) DEFAULT 0',
+      total_fee: 'DECIMAL(10,2) DEFAULT 0',
+      net_payout: 'DECIMAL(10,2) DEFAULT 0',
+      status: "ENUM('pending','approved','rejected','completed') DEFAULT 'pending'",
+      request_date: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      processed_date: 'TIMESTAMP NULL',
+      processed_by: 'INT NULL',
+      admin_notes: 'TEXT NULL',
+      partner_notes: 'TEXT NULL',
+      bank_details: 'JSON NULL',
+      transaction_id: 'VARCHAR(255) NULL',
+      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+      deleted_at: 'TIMESTAMP NULL',
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // BOOKINGS TABLE
+  // ─────────────────────────────────────────────────────────────────────────
+  bookings: {
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      customer_id: 'INT NOT NULL',
+      service_id: 'INT NOT NULL',
+      partner_id: 'INT NULL',
+      status: "ENUM('pending','assigned','in_progress','completed','cancelled') DEFAULT 'pending'",
+      scheduled_date: 'DATE NOT NULL',
+      scheduled_time: 'TIME NOT NULL',
+      address: 'TEXT NOT NULL',
+      latitude: 'DECIMAL(10,8) NULL',
+      longitude: 'DECIMAL(11,8) NULL',
+      price: 'DECIMAL(10,2) NOT NULL',
+      discount: 'DECIMAL(10,2) DEFAULT 0',
+      final_price: 'DECIMAL(10,2) NOT NULL',
+      payment_method: "ENUM('cash','online','wallet') DEFAULT 'cash'",
+      payment_status: "ENUM('pending','paid','failed','refunded') DEFAULT 'pending'",
+      razorpay_order_id: 'VARCHAR(100) NULL',
+      razorpay_payment_id: 'VARCHAR(100) NULL',
+      razorpay_signature: 'VARCHAR(500) NULL',
+      coupon_code: 'VARCHAR(50) NULL',
+      coupon_discount: 'DECIMAL(10,2) DEFAULT 0',
+      notes: 'TEXT NULL',
+      cancellation_reason: 'TEXT NULL',
+      cancelled_by: "ENUM('customer','partner','admin') NULL",
+      otp: 'VARCHAR(6) NULL',
+      otp_verified: 'TINYINT(1) DEFAULT 0',
+      rating: 'TINYINT NULL',
+      review: 'TEXT NULL',
+      fees_deducted: 'TINYINT(1) DEFAULT 0',
+      platform_fee: 'DECIMAL(10,2) DEFAULT 0',
+      task_fee: 'DECIMAL(10,2) DEFAULT 0',
+      partner_earning: 'DECIMAL(10,2) DEFAULT 0',
+      completed_at: 'TIMESTAMP NULL',
+      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+      deleted_at: 'TIMESTAMP NULL',
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PARTNERS TABLE
+  // ─────────────────────────────────────────────────────────────────────────
+  partners: {
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      name: 'VARCHAR(255) NOT NULL',
+      phone: 'VARCHAR(20) NOT NULL UNIQUE',
+      email: 'VARCHAR(255) NULL',
+      profile_image: 'VARCHAR(500) NULL',
+      category_id: 'INT NULL',
+      service_id: 'INT NULL',
+      latitude: 'DECIMAL(10,8) NULL',
+      longitude: 'DECIMAL(11,8) NULL',
+      address: 'TEXT NULL',
+      city: 'VARCHAR(100) NULL',
+      state: 'VARCHAR(100) NULL',
+      pincode: 'VARCHAR(10) NULL',
+      aadhar_number: 'VARCHAR(20) NULL',
+      aadhar_front: 'VARCHAR(500) NULL',
+      aadhar_back: 'VARCHAR(500) NULL',
+      pan_number: 'VARCHAR(20) NULL',
+      pan_card: 'VARCHAR(500) NULL',
+      bank_name: 'VARCHAR(255) NULL',
+      account_number: 'VARCHAR(50) NULL',
+      ifsc_code: 'VARCHAR(20) NULL',
+      account_holder_name: 'VARCHAR(255) NULL',
+      cancelled_cheque: 'VARCHAR(500) NULL',
+      status: "ENUM('pending','approved','rejected','suspended') DEFAULT 'pending'",
+      is_available: 'TINYINT(1) DEFAULT 1',
+      rating: 'DECIMAL(3,2) DEFAULT 0',
+      total_jobs: 'INT DEFAULT 0',
+      completed_jobs: 'INT DEFAULT 0',
+      balance: 'DECIMAL(10,2) DEFAULT 0',
+      fcm_token: 'VARCHAR(500) NULL',
+      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+      deleted_at: 'TIMESTAMP NULL',
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CUSTOMERS TABLE
+  // ─────────────────────────────────────────────────────────────────────────
+  customers: {
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      name: 'VARCHAR(255) NULL',
+      phone: 'VARCHAR(20) NOT NULL UNIQUE',
+      email: 'VARCHAR(255) NULL',
+      profile_image: 'VARCHAR(500) NULL',
+      fcm_token: 'VARCHAR(500) NULL',
+      wallet_balance: 'DECIMAL(10,2) DEFAULT 0',
+      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+      deleted_at: 'TIMESTAMP NULL',
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SETTINGS TABLE
+  // ─────────────────────────────────────────────────────────────────────────
+  settings: {
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      key_name: 'VARCHAR(255) NOT NULL UNIQUE',
+      value: 'TEXT NULL',
+      group_name: 'VARCHAR(100) NULL',
+      description: 'TEXT NULL',
+      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+    },
+    requiredSettings: [
+      { key: 'partner_minimum_wallet_balance', value: '200', group: 'wallet', description: 'Minimum wallet balance required for partners' },
+      { key: 'partner_minimum_withdrawal_amount', value: '100', group: 'wallet', description: 'Minimum amount for withdrawal requests' },
+      { key: 'partner_platform_fee_type', value: 'percentage', group: 'wallet', description: 'Platform fee type: percentage or fixed' },
+      { key: 'partner_platform_fee_value', value: '10', group: 'wallet', description: 'Platform fee value (10 = 10% or ₹10)' },
+      { key: 'partner_task_fee', value: '20', group: 'wallet', description: 'Per-task fee charged to partners' },
+    ]
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -62,255 +271,119 @@ function log(message, color = 'white') {
 }
 
 function header(text) {
-  const line = '═'.repeat(75);
+  const line = '═'.repeat(70);
   console.log(`\n${line}`);
   log(text, 'cyan');
   console.log(line);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DATABASE SCHEMA INSPECTION FUNCTIONS
+// DATABASE CHECK FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function getAllTables(connection) {
-  const [tables] = await connection.query(
-    `SELECT table_name FROM information_schema.tables 
-     WHERE table_schema = ? 
-     ORDER BY table_name`,
-    [DB_CONFIG.database]
+async function tableExists(connection, tableName) {
+  const [rows] = await connection.query(
+    `SELECT COUNT(*) as count FROM information_schema.tables 
+     WHERE table_schema = ? AND table_name = ?`,
+    [DB_CONFIG.database, tableName]
   );
-  return tables.map(t => t.table_name || t.TABLE_NAME);
+  return rows[0].count > 0;
 }
 
-async function getTableStructure(connection, tableName) {
+async function columnExists(connection, tableName, columnName) {
+  const [rows] = await connection.query(
+    `SELECT COUNT(*) as count FROM information_schema.columns 
+     WHERE table_schema = ? AND table_name = ? AND column_name = ?`,
+    [DB_CONFIG.database, tableName, columnName]
+  );
+  return rows[0].count > 0;
+}
+
+async function getTableColumns(connection, tableName) {
   const [columns] = await connection.query(
-    `SELECT 
-      column_name,
-      column_type,
-      is_nullable,
-      column_default,
-      extra,
-      column_key,
-      column_comment
-    FROM information_schema.columns 
-    WHERE table_schema = ? AND table_name = ?
-    ORDER BY ordinal_position`,
+    `SELECT column_name FROM information_schema.columns 
+     WHERE table_schema = ? AND table_name = ?
+     ORDER BY ordinal_position`,
     [DB_CONFIG.database, tableName]
   );
-  
-  return columns.map(col => ({
-    name: col.column_name || col.COLUMN_NAME,
-    type: col.column_type || col.COLUMN_TYPE,
-    nullable: (col.is_nullable || col.IS_NULLABLE) === 'YES',
-    default: col.column_default || col.COLUMN_DEFAULT,
-    extra: col.extra || col.EXTRA || '',
-    key: col.column_key || col.COLUMN_KEY || '',
-    comment: col.column_comment || col.COLUMN_COMMENT || '',
-  }));
-}
-
-async function getTableIndexes(connection, tableName) {
-  const [indexes] = await connection.query(
-    `SELECT 
-      index_name,
-      column_name,
-      non_unique,
-      seq_in_index,
-      index_type
-    FROM information_schema.statistics 
-    WHERE table_schema = ? AND table_name = ?
-    ORDER BY index_name, seq_in_index`,
-    [DB_CONFIG.database, tableName]
-  );
-  
-  // Group by index name
-  const indexMap = {};
-  indexes.forEach(idx => {
-    const name = idx.index_name || idx.INDEX_NAME;
-    if (!indexMap[name]) {
-      indexMap[name] = {
-        name,
-        columns: [],
-        unique: (idx.non_unique || idx.NON_UNIQUE) === 0,
-        type: idx.index_type || idx.INDEX_TYPE,
-      };
-    }
-    indexMap[name].columns.push(idx.column_name || idx.COLUMN_NAME);
-  });
-  
-  return Object.values(indexMap);
-}
-
-async function getTableForeignKeys(connection, tableName) {
-  const [fks] = await connection.query(
-    `SELECT 
-      constraint_name,
-      column_name,
-      referenced_table_name,
-      referenced_column_name,
-      update_rule,
-      delete_rule
-    FROM information_schema.key_column_usage
-    JOIN information_schema.referential_constraints USING (constraint_schema, constraint_name)
-    WHERE constraint_schema = ? 
-      AND table_name = ?
-      AND referenced_table_name IS NOT NULL`,
-    [DB_CONFIG.database, tableName]
-  );
-  
-  return fks.map(fk => ({
-    name: fk.constraint_name || fk.CONSTRAINT_NAME,
-    column: fk.column_name || fk.COLUMN_NAME,
-    referencedTable: fk.referenced_table_name || fk.REFERENCED_TABLE_NAME,
-    referencedColumn: fk.referenced_column_name || fk.REFERENCED_COLUMN_NAME,
-    onUpdate: fk.update_rule || fk.UPDATE_RULE,
-    onDelete: fk.delete_rule || fk.DELETE_RULE,
-  }));
-}
-
-async function getCreateTableStatement(connection, tableName) {
-  try {
-    const [result] = await connection.query(`SHOW CREATE TABLE ${tableName}`);
-    return result[0]['Create Table'] || result[0]['CREATE TABLE'];
-  } catch (error) {
-    return null;
-  }
+  return columns.map(col => col.column_name);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// COLUMN COMPARISON & MIGRATION FUNCTIONS
+// MIGRATION FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function buildColumnDefinition(column) {
-  let def = column.type.toUpperCase();
+async function createMissingTable(connection, tableName, schema) {
+  log(`\n📦 Creating missing table: ${tableName}`, 'yellow');
   
-  // Handle nullable
-  if (!column.nullable) {
-    def += ' NOT NULL';
-  } else {
-    def += ' NULL';
-  }
-  
-  // Handle default value
-  if (column.default !== null && column.default !== undefined) {
-    if (column.default === 'CURRENT_TIMESTAMP') {
-      def += ' DEFAULT CURRENT_TIMESTAMP';
-    } else if (column.default === 'NULL') {
-      def += ' DEFAULT NULL';
-    } else if (column.type.includes('int') || column.type.includes('decimal') || column.type.includes('float')) {
-      def += ` DEFAULT ${column.default}`;
-    } else {
-      def += ` DEFAULT '${column.default}'`;
-    }
-  }
-  
-  // Handle extra (AUTO_INCREMENT, ON UPDATE, etc.)
-  if (column.extra) {
-    if (column.extra.includes('auto_increment')) {
-      def += ' AUTO_INCREMENT';
-    }
-    if (column.extra.includes('on update CURRENT_TIMESTAMP')) {
-      def += ' ON UPDATE CURRENT_TIMESTAMP';
-    }
-  }
-  
-  // Handle comment
-  if (column.comment) {
-    def += ` COMMENT '${column.comment.replace(/'/g, "\\'")}'`;
-  }
-  
-  return def;
-}
-
-async function addMissingColumn(connection, tableName, column) {
   try {
-    const columnDef = buildColumnDefinition(column);
-    
-    log(`  ➕ Adding column: ${column.name}`, 'yellow');
-    log(`     Type: ${column.type}`, 'cyan');
-    
-    await connection.query(
-      `ALTER TABLE ${tableName} ADD COLUMN ${column.name} ${columnDef}`
-    );
-    
-    log(`  ✅ Added: ${column.name}`, 'green');
-    return true;
-  } catch (error) {
-    if (error.code === 'ER_DUP_FIELDNAME') {
-      log(`  ⏭️  Column ${column.name} already exists`, 'cyan');
-      return false;
-    } else {
-      log(`  ❌ Failed to add ${column.name}: ${error.message}`, 'red');
-      return false;
-    }
-  }
-}
-
-async function createMissingTable(connection, tableName, createStatement) {
-  try {
-    log(`\n📦 Creating missing table: ${tableName}`, 'yellow');
-    
-    // Replace table name in case it's from a different database
-    const modifiedStatement = createStatement.replace(
-      /CREATE TABLE `\w+`/,
-      `CREATE TABLE IF NOT EXISTS \`${tableName}\``
-    );
-    
-    await connection.query(modifiedStatement);
+    await connection.query(schema.createTable);
     log(`✅ Table ${tableName} created successfully`, 'green');
     return true;
   } catch (error) {
     log(`❌ Failed to create table ${tableName}: ${error.message}`, 'red');
-    log(`   SQL: ${createStatement.substring(0, 200)}...`, 'red');
     return false;
   }
 }
 
-async function addMissingIndex(connection, tableName, index) {
-  try {
-    // Skip PRIMARY key (handled by column definition)
-    if (index.name === 'PRIMARY') {
-      return false;
-    }
-    
-    const columns = index.columns.join(', ');
-    const indexType = index.unique ? 'UNIQUE INDEX' : 'INDEX';
-    
-    log(`  ➕ Adding index: ${index.name} (${columns})`, 'yellow');
-    
-    await connection.query(
-      `ALTER TABLE ${tableName} ADD ${indexType} ${index.name} (${columns})`
-    );
-    
-    log(`  ✅ Index ${index.name} added`, 'green');
-    return true;
-  } catch (error) {
-    if (error.code === 'ER_DUP_KEYNAME') {
-      return false;
-    } else {
-      log(`  ⚠️  Could not add index ${index.name}: ${error.message}`, 'yellow');
-      return false;
+async function addMissingColumns(connection, tableName, schema) {
+  if (!schema.columns) return 0;
+  
+  const existingColumns = await getTableColumns(connection, tableName);
+  const missingColumns = [];
+  
+  // Check each column in schema
+  for (const [columnName, definition] of Object.entries(schema.columns)) {
+    if (!existingColumns.includes(columnName)) {
+      missingColumns.push({ name: columnName, definition });
     }
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// REQUIRED SETTINGS
-// ═══════════════════════════════════════════════════════════════════════════
-
-const REQUIRED_SETTINGS = [
-  { key: 'partner_minimum_wallet_balance', value: '200', group: 'wallet', description: 'Minimum wallet balance required for partners' },
-  { key: 'partner_minimum_withdrawal_amount', value: '100', group: 'wallet', description: 'Minimum amount for withdrawal requests' },
-  { key: 'partner_platform_fee_type', value: 'percentage', group: 'wallet', description: 'Platform fee type: percentage or fixed' },
-  { key: 'partner_platform_fee_value', value: '10', group: 'wallet', description: 'Platform fee value (10 = 10% or ₹10)' },
-  { key: 'partner_task_fee', value: '20', group: 'wallet', description: 'Per-task fee charged to partners' },
-];
-
-async function ensureRequiredSettings(connection) {
-  log(`\n⚙️  Checking required settings...`, 'cyan');
+  
+  if (missingColumns.length === 0) {
+    log(`  ✓ All columns exist in ${tableName}`, 'cyan');
+    return 0;
+  }
+  
+  log(`\n  📝 Found ${missingColumns.length} missing column(s) in ${tableName}:`, 'yellow');
   
   let addedCount = 0;
-  for (const setting of REQUIRED_SETTINGS) {
+  for (const { name, definition } of missingColumns) {
+    try {
+      // Clean definition for ALTER TABLE (remove PRIMARY KEY, AUTO_INCREMENT)
+      let cleanDef = definition
+        .replace(/AUTO_INCREMENT PRIMARY KEY/gi, '')
+        .replace(/PRIMARY KEY/gi, '')
+        .trim();
+      
+      // Skip if this is the id column (already exists as primary key)
+      if (name === 'id') {
+        log(`  ⏭️  Skipping id column (primary key already exists)`, 'cyan');
+        continue;
+      }
+      
+      log(`  ➕ Adding column: ${name}`, 'yellow');
+      await connection.query(`ALTER TABLE ${tableName} ADD COLUMN ${name} ${cleanDef}`);
+      log(`  ✅ Added: ${name}`, 'green');
+      addedCount++;
+    } catch (error) {
+      if (error.code === 'ER_DUP_FIELDNAME') {
+        log(`  ⏭️  Column ${name} already exists`, 'cyan');
+      } else {
+        log(`  ❌ Failed to add ${name}: ${error.message}`, 'red');
+      }
+    }
+  }
+  
+  return addedCount;
+}
+
+async function ensureRequiredSettings(connection, requiredSettings) {
+  if (!requiredSettings || requiredSettings.length === 0) return 0;
+  
+  log(`\n  ⚙️  Checking required settings...`, 'cyan');
+  
+  let addedCount = 0;
+  for (const setting of requiredSettings) {
     try {
       const [rows] = await connection.query(
         'SELECT COUNT(*) as count FROM settings WHERE key_name = ?',
@@ -336,93 +409,101 @@ async function ensureRequiredSettings(connection) {
   return addedCount;
 }
 
+async function cleanInvalidMetadata(connection) {
+  try {
+    log(`\n  🧹 Checking for invalid metadata entries...`, 'cyan');
+    
+    const [invalidRows] = await connection.query(`
+      SELECT COUNT(*) as count 
+      FROM wallet_transactions 
+      WHERE metadata IS NOT NULL 
+        AND metadata != 'null'
+        AND (metadata = '[object Object]' OR metadata NOT LIKE '{%')
+    `);
+    
+    if (invalidRows[0].count > 0) {
+      log(`  ⚠️  Found ${invalidRows[0].count} invalid metadata entries`, 'yellow');
+      log(`  🧹 Cleaning invalid metadata...`, 'yellow');
+      
+      await connection.query(`
+        UPDATE wallet_transactions 
+        SET metadata = NULL 
+        WHERE metadata = '[object Object]' 
+           OR (metadata NOT LIKE '{%' AND metadata != 'null' AND metadata IS NOT NULL)
+      `);
+      
+      log(`  ✅ Cleaned ${invalidRows[0].count} invalid metadata entries`, 'green');
+      return invalidRows[0].count;
+    } else {
+      log(`  ✓ No invalid metadata found`, 'cyan');
+    }
+  } catch (error) {
+    // Table might not exist yet, ignore
+    log(`  ⏭️  Skipping metadata cleanup (table may not exist)`, 'cyan');
+  }
+  return 0;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN MIGRATION FUNCTION
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function runAutoMigration() {
-  let localConnection, prodConnection;
+  let connection;
   let stats = {
     tablesCreated: 0,
     columnsAdded: 0,
-    indexesAdded: 0,
     settingsAdded: 0,
-    tablesChecked: 0,
+    metadataCleaned: 0,
   };
   
   try {
-    header('🚀 COMPREHENSIVE AUTO-MIGRATION SYSTEM');
+    header('🚀 AUTO-MIGRATION SYSTEM STARTING');
     log(`Environment: ${process.env.NODE_ENV || 'development'}`, 'cyan');
-    log(`Target Database: ${DB_CONFIG.database}`, 'cyan');
+    log(`Database: ${DB_CONFIG.database}`, 'cyan');
     log(`Host: ${DB_CONFIG.host}:${DB_CONFIG.port}`, 'cyan');
     
-    // Connect to production/target database
-    log('\n🔌 Connecting to target database...', 'cyan');
-    prodConnection = await mysql.createConnection(DB_CONFIG);
-    log('✅ Connected to target database\n', 'green');
+    // Connect to database
+    log('\n🔌 Connecting to database...', 'cyan');
+    connection = await mysql.createConnection(DB_CONFIG);
+    log('✅ Connected successfully\n', 'green');
     
-    // In production, we'll use the schema from the CREATE TABLE statements below
-    // In development, we can compare with local
-    const isProduction = process.env.NODE_ENV === 'production';
-    
-    if (isProduction) {
-      log('📋 Running in PRODUCTION mode - using embedded schema', 'yellow');
-    } else {
-      log('📋 Running in DEVELOPMENT mode - using local database as source', 'cyan');
-    }
-    
-    // Get all tables from target database
-    const prodTables = await getAllTables(prodConnection);
-    log(`\n📊 Found ${prodTables.length} tables in target database`, 'cyan');
-    
-    // Define critical tables that MUST exist with their CREATE statements
-    const CRITICAL_TABLES = await getCriticalTablesSchema(prodConnection);
-    
-    // Process each critical table
-    for (const { name: tableName, createStatement } of CRITICAL_TABLES) {
+    // Process each table in schema
+    for (const [tableName, schema] of Object.entries(SCHEMA)) {
       header(`📋 Processing: ${tableName}`);
-      stats.tablesChecked++;
       
-      const tableExists = prodTables.includes(tableName);
+      const exists = await tableExists(connection, tableName);
       
-      if (!tableExists) {
+      if (!exists && schema.createTable) {
         // Table doesn't exist - create it
-        const created = await createMissingTable(prodConnection, tableName, createStatement);
+        const created = await createMissingTable(connection, tableName, schema);
         if (created) stats.tablesCreated++;
+      } else if (exists) {
+        // Table exists - check for missing columns
+        log(`  ✓ Table exists, checking columns...`, 'cyan');
+        const added = await addMissingColumns(connection, tableName, schema);
+        stats.columnsAdded += added;
+        
+        // Check for required settings
+        if (schema.requiredSettings) {
+          const settingsAdded = await ensureRequiredSettings(connection, schema.requiredSettings);
+          stats.settingsAdded += settingsAdded;
+        }
       } else {
-        // Table exists - check columns
-        log(`  ✓ Table exists, checking structure...`, 'cyan');
-        
-        // Get source structure (from CREATE statement)
-        const sourceColumns = await parseColumnsFromCreateStatement(createStatement);
-        const targetColumns = await getTableStructure(prodConnection, tableName);
-        
-        const targetColumnNames = targetColumns.map(c => c.name);
-        
-        // Find missing columns
-        for (const sourceCol of sourceColumns) {
-          if (!targetColumnNames.includes(sourceCol.name)) {
-            const added = await addMissingColumn(prodConnection, tableName, sourceCol);
-            if (added) stats.columnsAdded++;
-          }
-        }
-        
-        if (sourceColumns.length === targetColumns.length) {
-          log(`  ✅ All columns exist (${targetColumns.length} columns)`, 'green');
-        }
+        log(`  ⏭️  Skipping ${tableName} (no create schema defined)`, 'yellow');
       }
     }
     
-    // Ensure required settings
-    header('⚙️  Settings Configuration');
-    stats.settingsAdded = await ensureRequiredSettings(prodConnection);
+    // Clean invalid metadata
+    header('🧹 Data Cleanup');
+    stats.metadataCleaned = await cleanInvalidMetadata(connection);
     
     // Print summary
     header('📊 MIGRATION SUMMARY');
-    log(`Tables checked: ${stats.tablesChecked}`, 'cyan');
     log(`Tables created: ${stats.tablesCreated}`, stats.tablesCreated > 0 ? 'green' : 'cyan');
     log(`Columns added: ${stats.columnsAdded}`, stats.columnsAdded > 0 ? 'green' : 'cyan');
     log(`Settings added: ${stats.settingsAdded}`, stats.settingsAdded > 0 ? 'green' : 'cyan');
+    log(`Metadata cleaned: ${stats.metadataCleaned}`, stats.metadataCleaned > 0 ? 'green' : 'cyan');
     
     if (stats.tablesCreated === 0 && stats.columnsAdded === 0 && stats.settingsAdded === 0) {
       log('\n✨ Database schema is up to date!', 'green');
@@ -435,133 +516,11 @@ async function runAutoMigration() {
     console.error(error);
     process.exit(1);
   } finally {
-    if (prodConnection) {
-      await prodConnection.end();
+    if (connection) {
+      await connection.end();
       log('\n👋 Database connection closed\n', 'cyan');
     }
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// CRITICAL TABLES SCHEMA (FROM LOCAL DATABASE)
-// ═══════════════════════════════════════════════════════════════════════════
-
-async function getCriticalTablesSchema(connection) {
-  // These are the CREATE TABLE statements from your local database
-  // They will be used to ensure production has the same structure
-  
-  const tables = [];
-  
-  // Read the local schema backup if it exists
-  const schemaPath = path.join(__dirname, 'local_schema_backup.sql');
-  
-  if (fs.existsSync(schemaPath)) {
-    log('📄 Loading schema from local_schema_backup.sql', 'cyan');
-    const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
-    
-    // Parse CREATE TABLE statements
-    const createTableRegex = /CREATE TABLE `(\w+)` \(([\s\S]*?)\) ENGINE=InnoDB[^;]*;/g;
-    let match;
-    
-    while ((match = createTableRegex.exec(schemaSQL)) !== null) {
-      const tableName = match[1];
-      const fullStatement = match[0];
-      
-      tables.push({
-        name: tableName,
-        createStatement: fullStatement,
-      });
-    }
-    
-    log(`✅ Loaded ${tables.length} table definitions from schema file`, 'green');
-  } else {
-    log('⚠️  Schema backup not found, using minimal critical tables', 'yellow');
-    
-    // Fallback: Define only the most critical tables manually
-    tables.push(
-      {
-        name: 'wallet_topups',
-        createStatement: `CREATE TABLE IF NOT EXISTS \`wallet_topups\` (
-          \`id\` int(11) NOT NULL AUTO_INCREMENT,
-          \`partner_id\` int(11) NOT NULL,
-          \`amount\` decimal(10,2) NOT NULL,
-          \`razorpay_order_id\` varchar(100) DEFAULT NULL,
-          \`razorpay_payment_id\` varchar(100) DEFAULT NULL,
-          \`razorpay_signature\` varchar(500) DEFAULT NULL,
-          \`status\` enum('pending','completed','failed') DEFAULT 'pending',
-          \`failure_reason\` varchar(500) DEFAULT NULL,
-          \`created_at\` timestamp NOT NULL DEFAULT current_timestamp(),
-          \`completed_at\` timestamp NULL DEFAULT NULL,
-          PRIMARY KEY (\`id\`),
-          UNIQUE KEY \`razorpay_order_id\` (\`razorpay_order_id\`),
-          KEY \`idx_partner_id\` (\`partner_id\`),
-          KEY \`idx_status\` (\`status\`),
-          CONSTRAINT \`wallet_topups_ibfk_1\` FOREIGN KEY (\`partner_id\`) REFERENCES \`partners\` (\`id\`) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
-      }
-    );
-  }
-  
-  return tables;
-}
-
-async function parseColumnsFromCreateStatement(createStatement) {
-  // Extract column definitions from CREATE TABLE statement
-  const columns = [];
-  
-  // Split by lines and parse each line
-  const lines = createStatement.split('\n');
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    
-    // Skip lines that don't start with a backtick (column definition)
-    if (!trimmed.startsWith('`')) {
-      continue;
-    }
-    
-    // Extract column name (between backticks)
-    const columnNameMatch = trimmed.match(/^`(\w+)`/);
-    if (!columnNameMatch) {
-      continue;
-    }
-    
-    const columnName = columnNameMatch[1];
-    
-    // Skip constraint keywords
-    if (['PRIMARY', 'KEY', 'UNIQUE', 'CONSTRAINT', 'FOREIGN', 'INDEX'].includes(columnName)) {
-      continue;
-    }
-    
-    // Get everything after the column name
-    const columnDef = trimmed.substring(columnNameMatch[0].length).trim();
-    
-    // Parse column definition
-    const typeMatch = columnDef.match(/^(\w+(?:\([^)]+\))?(?:\s+unsigned)?)/i);
-    const type = typeMatch ? typeMatch[1] : columnDef.split(' ')[0];
-    
-    const nullable = !columnDef.includes('NOT NULL');
-    const autoIncrement = columnDef.includes('AUTO_INCREMENT');
-    const onUpdate = columnDef.includes('ON UPDATE CURRENT_TIMESTAMP');
-    
-    let defaultValue = null;
-    const defaultMatch = columnDef.match(/DEFAULT\s+([^,\s]+(?:\s+[^,\s]+)?)/i);
-    if (defaultMatch) {
-      defaultValue = defaultMatch[1].replace(/'/g, '');
-    }
-    
-    columns.push({
-      name: columnName,
-      type: type,
-      nullable: nullable,
-      default: defaultValue,
-      extra: (autoIncrement ? 'auto_increment ' : '') + (onUpdate ? 'on update CURRENT_TIMESTAMP' : ''),
-      key: '',
-      comment: '',
-    });
-  }
-  
-  return columns;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

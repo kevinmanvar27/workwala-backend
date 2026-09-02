@@ -343,6 +343,22 @@ export async function recordWalletTransaction(
   
   console.log(`📊 [recordWalletTransaction] Balance after: ₹${balanceAfter}`);
 
+  // Prepare metadata - ensure it's a valid JSON string
+  let metadataValue = null;
+  if (options.metadata) {
+    try {
+      // Convert metadata to JSON string, ensuring all nested objects are properly serialized
+      metadataValue = JSON.stringify(options.metadata);
+      // Validate it can be parsed back
+      JSON.parse(metadataValue);
+    } catch (error) {
+      console.error(`❌ [recordWalletTransaction] Invalid metadata:`, error);
+      console.error(`   Metadata object:`, options.metadata);
+      // Set to null if invalid to prevent database errors
+      metadataValue = null;
+    }
+  }
+
   // Record transaction
   await query(
     `INSERT INTO wallet_transactions 
@@ -358,7 +374,7 @@ export async function recordWalletTransaction(
       options.paymentMethod || null,
       balanceBefore,
       balanceAfter,
-      options.metadata ? JSON.stringify(options.metadata) : null,
+      metadataValue,
     ]
   );
   
@@ -481,10 +497,34 @@ export async function getWalletTransactions(
     [partnerId, limit, offset]
   );
 
-  return transactions.map(t => ({
-    ...t,
-    metadata: t.metadata ? JSON.parse(t.metadata as any) : null,
-  }));
+  return transactions.map(t => {
+    let parsedMetadata = null;
+    if (t.metadata) {
+      try {
+        // Handle both string and object metadata
+        if (typeof t.metadata === 'string') {
+          // Skip invalid metadata strings
+          if (t.metadata === '[object Object]' || !t.metadata.startsWith('{')) {
+            console.warn(`⚠️  Invalid metadata string for transaction ${t.id}: "${t.metadata}"`);
+            parsedMetadata = null;
+          } else {
+            parsedMetadata = JSON.parse(t.metadata);
+          }
+        } else if (typeof t.metadata === 'object') {
+          parsedMetadata = t.metadata;
+        }
+      } catch (error) {
+        console.error(`❌ Failed to parse metadata for transaction ${t.id}:`, error);
+        console.error(`   Raw metadata: "${t.metadata}"`);
+        parsedMetadata = null;
+      }
+    }
+    
+    return {
+      ...t,
+      metadata: parsedMetadata,
+    };
+  });
 }
 
 // ============================================================================
@@ -533,9 +573,26 @@ export async function getWalletStatistics(
 
   feeTransactions.forEach(t => {
     if (t.metadata) {
-      const meta = JSON.parse(t.metadata);
-      platformFeesDeducted += meta.platform_fee || 0;
-      taskFeesDeducted += meta.task_fee || 0;
+      try {
+        let meta;
+        if (typeof t.metadata === 'string') {
+          // Skip invalid metadata strings
+          if (t.metadata === '[object Object]' || !t.metadata.startsWith('{')) {
+            return; // Skip this transaction
+          }
+          meta = JSON.parse(t.metadata);
+        } else if (typeof t.metadata === 'object') {
+          meta = t.metadata;
+        } else {
+          return; // Skip unknown types
+        }
+        
+        platformFeesDeducted += meta.platform_fee || 0;
+        taskFeesDeducted += meta.task_fee || 0;
+      } catch (error) {
+        console.error(`Failed to parse metadata for fee transaction:`, error);
+        // Skip this transaction
+      }
     }
   });
 
