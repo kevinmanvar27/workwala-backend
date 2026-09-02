@@ -75,6 +75,11 @@ const MIGRATIONS = [
     name: 'wallet_transactions',
     file: 'migrate_wallet_transactions.js',
     description: 'Create wallet_transactions table for partner wallet system (earnings, fees, withdrawals, topups)'
+  },
+  {
+    name: 'wallet_settings',
+    file: 'migrate_wallet_settings.js',
+    description: 'Add minimum withdrawal amount setting to settings table'
   }
 ];
 

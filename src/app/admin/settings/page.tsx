@@ -811,6 +811,16 @@ function SettingsContent() {
                   get={get} 
                   set={set} 
                 />
+                <Field 
+                  label="Minimum Withdrawal (₹)" 
+                  group="wallet" 
+                  field="partner_minimum_withdrawal_amount" 
+                  type="number"
+                  placeholder="100" 
+                  hint="Minimum amount partners can request for withdrawal"
+                  get={get} 
+                  set={set} 
+                />
               </div>
             </div>
 

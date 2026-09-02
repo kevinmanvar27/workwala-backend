@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
 import { notifyAdmins } from '@/lib/notificationHelper';
-import { validateWithdrawalAmount, deductPendingFees, calculatePendingFees } from '@/lib/walletHelper';
+import { validateWithdrawalAmount, deductPendingFees, calculatePendingFees, getWalletSettings } from '@/lib/walletHelper';
 
 // POST /api/partner/withdrawal/request
 // Partner submits a withdrawal request
@@ -20,8 +20,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Valid withdrawal amount is required' }, { status: 400 });
     }
 
-    // Minimum withdrawal amount (e.g., ₹100)
-    const MIN_WITHDRAWAL = 100;
+    // Get wallet settings for minimum withdrawal amount
+    const walletSettings = await getWalletSettings();
+    const MIN_WITHDRAWAL = walletSettings.minimumWithdrawalAmount;
+    
     if (amount < MIN_WITHDRAWAL) {
       return NextResponse.json({ 
         error: `Minimum withdrawal amount is ₹${MIN_WITHDRAWAL}` 

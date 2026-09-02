@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
       },
       settings: {
         minimum_balance: settings.minimumBalance,
+        minimum_withdrawal_amount: settings.minimumWithdrawalAmount,
         platform_fee_type: settings.platformFeeType,
         platform_fee_value: settings.platformFeeValue,
         task_fee: settings.taskFee,

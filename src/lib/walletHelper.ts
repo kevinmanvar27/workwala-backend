@@ -11,6 +11,7 @@ import { query } from './db';
 
 export interface WalletSettings {
   minimumBalance: number;
+  minimumWithdrawalAmount: number;
   platformFeeType: 'percentage' | 'fixed';
   platformFeeValue: number;
   taskFee: number;
@@ -51,6 +52,7 @@ export async function getWalletSettings(): Promise<WalletSettings> {
     `SELECT key_name, value FROM settings 
      WHERE key_name IN (
        'partner_minimum_wallet_balance',
+       'partner_minimum_withdrawal_amount',
        'partner_platform_fee_type',
        'partner_platform_fee_value',
        'partner_task_fee'
@@ -64,6 +66,7 @@ export async function getWalletSettings(): Promise<WalletSettings> {
 
   return {
     minimumBalance: parseFloat(settingsMap['partner_minimum_wallet_balance'] || '200'),
+    minimumWithdrawalAmount: parseFloat(settingsMap['partner_minimum_withdrawal_amount'] || '100'),
     platformFeeType: (settingsMap['partner_platform_fee_type'] || 'percentage') as 'percentage' | 'fixed',
     platformFeeValue: parseFloat(settingsMap['partner_platform_fee_value'] || '10'),
     taskFee: parseFloat(settingsMap['partner_task_fee'] || '20'),
