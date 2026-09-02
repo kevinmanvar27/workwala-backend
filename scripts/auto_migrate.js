@@ -5,8 +5,8 @@
  * 
  * This script:
  * 1. Checks if all required tables and columns exist
- * 2. Creates missing tables
- * 3. Adds missing columns
+ * 2. Creates missing tables with ALL columns
+ * 3. Adds missing columns to existing tables
  * 4. Runs safely on both local and production
  * 5. Can be run multiple times (idempotent)
  * 
@@ -57,9 +57,113 @@ function header(title) {
   console.log('═'.repeat(70) + '\n');
 }
 
-// Define expected database schema
+// Define COMPLETE database schema with ALL columns
 const EXPECTED_SCHEMA = {
-  // Withdrawal requests table
+  // Partners table - COMPLETE SCHEMA
+  partners: {
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      phone: 'VARCHAR(15) NOT NULL',
+      name: 'VARCHAR(255) NULL',
+      gender: "ENUM('Male','Female','Other') NULL",
+      language: 'VARCHAR(50) NULL',
+      categories: 'LONGTEXT NULL',
+      team_option: 'VARCHAR(50) NULL',
+      vehicle_type: 'VARCHAR(100) NULL',
+      status: "ENUM('pending','approved','rejected','banned','suspended','inactive') NOT NULL DEFAULT 'pending'",
+      fcm_token: 'VARCHAR(500) NULL',
+      deleted_at: 'TIMESTAMP NULL',
+      created_at: 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+      updated_at: 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+      rating: 'DECIMAL(3,2) NULL DEFAULT 0.00',
+      total_reviews: 'INT NOT NULL DEFAULT 0',
+      balance: 'DECIMAL(10,2) NULL DEFAULT 0.00',
+      lat: 'DECIMAL(10,7) NULL',
+      lng: 'DECIMAL(10,7) NULL',
+      last_seen_at: 'TIMESTAMP NULL',
+      is_online: 'TINYINT(1) NOT NULL DEFAULT 0',
+    },
+    indexes: [
+      'UNIQUE KEY phone (phone)',
+      'INDEX idx_status (status)',
+      'INDEX idx_is_online (is_online)',
+      'INDEX idx_deleted_at (deleted_at)',
+    ],
+  },
+
+  // Bookings table - COMPLETE SCHEMA
+  bookings: {
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      customer_id: 'INT NOT NULL',
+      partner_id: 'INT NULL',
+      service_id: 'INT NOT NULL',
+      service_name: 'VARCHAR(255) NOT NULL',
+      duration_minutes: 'INT NOT NULL',
+      price_per_hour: 'DECIMAL(10,2) NOT NULL',
+      total_price: 'DECIMAL(10,2) NOT NULL',
+      final_price: 'DECIMAL(10,2) NOT NULL',
+      discount_amount: 'DECIMAL(10,2) DEFAULT 0.00',
+      coupon_code: 'VARCHAR(50) NULL',
+      address: 'TEXT NOT NULL',
+      lat: 'DECIMAL(10,7) NOT NULL',
+      lng: 'DECIMAL(10,7) NOT NULL',
+      status: "ENUM('PENDING','ACCEPTED','IN_PROGRESS','COMPLETED','CANCELLED') NOT NULL DEFAULT 'PENDING'",
+      payment_method: "ENUM('CASH','ONLINE') NOT NULL",
+      payment_status: "ENUM('PENDING','PAID','FAILED','REFUNDED') NOT NULL DEFAULT 'PENDING'",
+      razorpay_order_id: 'VARCHAR(100) NULL',
+      razorpay_payment_id: 'VARCHAR(100) NULL',
+      razorpay_signature: 'VARCHAR(500) NULL',
+      notes: 'TEXT NULL',
+      cancellation_reason: 'TEXT NULL',
+      cancelled_by: "ENUM('customer','partner','admin') NULL",
+      fees_deducted: 'TINYINT(1) DEFAULT 0',
+      created_at: 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+      updated_at: 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+      accepted_at: 'TIMESTAMP NULL',
+      started_at: 'TIMESTAMP NULL',
+      completed_at: 'TIMESTAMP NULL',
+      cancelled_at: 'TIMESTAMP NULL',
+    },
+    indexes: [
+      'INDEX idx_customer_id (customer_id)',
+      'INDEX idx_partner_id (partner_id)',
+      'INDEX idx_service_id (service_id)',
+      'INDEX idx_status (status)',
+      'INDEX idx_payment_status (payment_status)',
+      'INDEX idx_created_at (created_at)',
+    ],
+    foreignKeys: [
+      'FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE',
+      'FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE SET NULL',
+    ],
+  },
+
+  // Wallet transactions table - COMPLETE SCHEMA
+  wallet_transactions: {
+    columns: {
+      id: 'INT AUTO_INCREMENT PRIMARY KEY',
+      partner_id: 'INT NOT NULL',
+      type: "ENUM('earning','withdrawal','topup','fee','refund','adjustment') NOT NULL",
+      amount: 'DECIMAL(10,2) NOT NULL',
+      description: 'TEXT NULL',
+      payment_method: "ENUM('CASH','ONLINE') NULL",
+      balance_after: 'DECIMAL(10,2) NOT NULL',
+      metadata: 'JSON NULL',
+      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+    },
+    indexes: [
+      'INDEX idx_partner_id (partner_id)',
+      'INDEX idx_type (type)',
+      'INDEX idx_created_at (created_at)',
+    ],
+    foreignKeys: [
+      'FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE',
+    ],
+  },
+
+  // Withdrawal requests table - COMPLETE SCHEMA
   withdrawal_requests: {
     columns: {
       id: 'INT AUTO_INCREMENT PRIMARY KEY',
@@ -94,31 +198,7 @@ const EXPECTED_SCHEMA = {
     ],
   },
 
-  // Wallet transactions table
-  wallet_transactions: {
-    columns: {
-      id: 'INT AUTO_INCREMENT PRIMARY KEY',
-      partner_id: 'INT NOT NULL',
-      type: "ENUM('earning','withdrawal','topup','fee','refund','adjustment') NOT NULL",
-      amount: 'DECIMAL(10,2) NOT NULL',
-      description: 'TEXT NULL',
-      payment_method: "ENUM('CASH','ONLINE') NULL",
-      balance_after: 'DECIMAL(10,2) NOT NULL',
-      metadata: 'JSON NULL',
-      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-      updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
-    },
-    indexes: [
-      'INDEX idx_partner_id (partner_id)',
-      'INDEX idx_type (type)',
-      'INDEX idx_created_at (created_at)',
-    ],
-    foreignKeys: [
-      'FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE',
-    ],
-  },
-
-  // Wallet topups table
+  // Wallet topups table - COMPLETE SCHEMA
   wallet_topups: {
     columns: {
       id: 'INT AUTO_INCREMENT PRIMARY KEY',
@@ -136,28 +216,13 @@ const EXPECTED_SCHEMA = {
       'UNIQUE KEY razorpay_order_id (razorpay_order_id)',
       'INDEX idx_partner_id (partner_id)',
       'INDEX idx_status (status)',
-      'INDEX idx_razorpay_order_id (razorpay_order_id)',
     ],
     foreignKeys: [
       'FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE',
     ],
   },
 
-  // Bookings table - ensure fees_deducted column exists
-  bookings: {
-    columns: {
-      fees_deducted: 'TINYINT(1) DEFAULT 0',
-    },
-  },
-
-  // Partners table - ensure balance column exists
-  partners: {
-    columns: {
-      balance: 'DECIMAL(10,2) DEFAULT 0.00',
-    },
-  },
-
-  // Settings table - ensure wallet-related settings exist
+  // Settings table - ensure required settings exist
   settings: {
     requiredSettings: [
       { key: 'partner_minimum_wallet_balance', value: '200' },
@@ -187,6 +252,15 @@ async function checkColumnExists(connection, tableName, columnName) {
   return rows[0].count > 0;
 }
 
+async function checkIndexExists(connection, tableName, indexName) {
+  const [rows] = await connection.query(
+    `SELECT COUNT(*) as count FROM information_schema.statistics 
+     WHERE table_schema = ? AND table_name = ? AND index_name = ?`,
+    [DB_CONFIG.database, tableName, indexName]
+  );
+  return rows[0].count > 0;
+}
+
 async function createTable(connection, tableName, schema) {
   log(`Creating table: ${tableName}`, 'yellow');
   
@@ -208,18 +282,45 @@ ${columns}${indexes}${foreignKeys}
 }
 
 async function addColumn(connection, tableName, columnName, definition) {
-  log(`Adding column: ${tableName}.${columnName}`, 'yellow');
+  log(`  Adding column: ${tableName}.${columnName}`, 'yellow');
   
   try {
+    // Remove PRIMARY KEY from definition when adding column
+    const cleanDefinition = definition.replace(/AUTO_INCREMENT PRIMARY KEY/i, 'AUTO_INCREMENT');
+    
     await connection.query(
-      `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`
+      `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${cleanDefinition}`
     );
-    log(`✅ Column ${tableName}.${columnName} added successfully`, 'green');
+    log(`  ✅ Column ${tableName}.${columnName} added successfully`, 'green');
   } catch (error) {
     if (error.code === 'ER_DUP_FIELDNAME') {
-      log(`⚠️  Column ${tableName}.${columnName} already exists`, 'yellow');
+      log(`  ⚠️  Column ${tableName}.${columnName} already exists`, 'yellow');
     } else {
+      log(`  ❌ Error adding column ${tableName}.${columnName}: ${error.message}`, 'red');
       throw error;
+    }
+  }
+}
+
+async function addIndex(connection, tableName, indexDefinition) {
+  try {
+    // Extract index name from definition
+    const indexMatch = indexDefinition.match(/(INDEX|KEY|UNIQUE KEY)\s+(\w+)/i);
+    if (!indexMatch) return;
+    
+    const indexName = indexMatch[2];
+    const exists = await checkIndexExists(connection, tableName, indexName);
+    
+    if (!exists) {
+      log(`  Adding index: ${indexName} on ${tableName}`, 'yellow');
+      await connection.query(`ALTER TABLE ${tableName} ADD ${indexDefinition}`);
+      log(`  ✅ Index ${indexName} added successfully`, 'green');
+    }
+  } catch (error) {
+    if (error.code === 'ER_DUP_KEYNAME') {
+      // Index already exists, ignore
+    } else {
+      log(`  ⚠️  Could not add index: ${error.message}`, 'yellow');
     }
   }
 }
@@ -234,14 +335,14 @@ async function ensureSettings(connection, requiredSettings) {
     );
     
     if (rows[0].count === 0) {
-      log(`Adding setting: ${setting.key} = ${setting.value}`, 'yellow');
+      log(`  Adding setting: ${setting.key} = ${setting.value}`, 'yellow');
       await connection.query(
         'INSERT INTO settings (key_name, value, group_name) VALUES (?, ?, ?)',
         [setting.key, setting.value, 'wallet']
       );
-      log(`✅ Setting ${setting.key} added`, 'green');
+      log(`  ✅ Setting ${setting.key} added`, 'green');
     } else {
-      log(`✓ Setting ${setting.key} exists`, 'cyan');
+      log(`  ✓ Setting ${setting.key} exists`, 'cyan');
     }
   }
 }
@@ -257,20 +358,23 @@ async function cleanInvalidMetadata(connection) {
   `);
   
   if (invalidRows[0].count > 0) {
-    log(`Found ${invalidRows[0].count} invalid metadata entries, cleaning...`, 'yellow');
+    log(`  Found ${invalidRows[0].count} invalid metadata entries, cleaning...`, 'yellow');
     await connection.query(`
       UPDATE wallet_transactions 
       SET metadata = NULL 
       WHERE metadata = '[object Object]' OR metadata NOT LIKE '{%'
     `);
-    log(`✅ Cleaned ${invalidRows[0].count} invalid metadata entries`, 'green');
+    log(`  ✅ Cleaned ${invalidRows[0].count} invalid metadata entries`, 'green');
   } else {
-    log('✓ No invalid metadata found', 'cyan');
+    log('  ✓ No invalid metadata found', 'cyan');
   }
 }
 
 async function runMigration() {
   let connection;
+  let totalTablesCreated = 0;
+  let totalColumnsAdded = 0;
+  let totalIndexesAdded = 0;
   
   try {
     header('🚀 DATABASE AUTO-MIGRATION');
@@ -292,6 +396,7 @@ async function runMigration() {
       if (!tableExists && schema.columns) {
         // Table doesn't exist, create it
         await createTable(connection, tableName, schema);
+        totalTablesCreated++;
       } else if (tableExists && schema.columns) {
         // Table exists, check columns
         log(`✓ Table ${tableName} exists, checking columns...`, 'cyan');
@@ -301,8 +406,17 @@ async function runMigration() {
           
           if (!columnExists) {
             await addColumn(connection, tableName, columnName, definition);
+            totalColumnsAdded++;
           } else {
-            log(`✓ Column ${tableName}.${columnName} exists`, 'cyan');
+            log(`  ✓ Column ${tableName}.${columnName} exists`, 'cyan');
+          }
+        }
+        
+        // Check indexes
+        if (schema.indexes) {
+          log(`\nChecking indexes for ${tableName}...`, 'cyan');
+          for (const indexDef of schema.indexes) {
+            await addIndex(connection, tableName, indexDef);
           }
         }
       }
@@ -319,8 +433,10 @@ async function runMigration() {
     
     // Final summary
     header('✅ MIGRATION COMPLETED SUCCESSFULLY');
-    log('All tables and columns are up to date!', 'green');
-    log('Database is ready for use.', 'green');
+    log(`Tables created: ${totalTablesCreated}`, 'green');
+    log(`Columns added: ${totalColumnsAdded}`, 'green');
+    log(`All tables and columns are up to date!`, 'green');
+    log(`Database is ready for use.`, 'green');
     
   } catch (error) {
     header('❌ MIGRATION FAILED');
