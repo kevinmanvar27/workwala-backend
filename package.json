@@ -12,6 +12,8 @@
     "migrate:auto": "node scripts/auto-migrate.js",
     "migrate:coupons": "node scripts/migrate_coupons.js",
     "migrate:notifications": "node scripts/migrate_notifications.js",
+    "migrate:wallet": "node scripts/migrate_wallet_transactions.js",
+    "verify": "node scripts/verify_migration.js",
     "seed": "node scripts/seed.js",
     "setup": "node scripts/setup.js"
   },

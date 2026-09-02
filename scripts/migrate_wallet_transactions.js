@@ -47,21 +47,21 @@ async function migrate() {
     console.log('✅ Connected to database');
 
     // Create wallet_transactions table
+    // Note: partner_id must be INT (signed) to match partners.id column type
     await connection.query(`
       CREATE TABLE IF NOT EXISTS wallet_transactions (
-        id INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
-        partner_id INT(11) UNSIGNED NOT NULL,
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        partner_id INT NOT NULL,
         type ENUM('earning', 'fee_deduction', 'withdrawal', 'topup', 'refund', 'penalty') NOT NULL,
         amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         description TEXT NOT NULL,
         reference_type VARCHAR(50) DEFAULT NULL COMMENT 'e.g., booking, withdrawal_request',
-        reference_id INT(11) DEFAULT NULL COMMENT 'ID of the related record',
+        reference_id INT DEFAULT NULL COMMENT 'ID of the related record',
         payment_method VARCHAR(50) DEFAULT NULL COMMENT 'online, cash, bank_transfer, etc.',
         balance_before DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         balance_after DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         metadata JSON DEFAULT NULL COMMENT 'Additional transaction details (fees, amounts, etc.)',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
         KEY idx_partner_id (partner_id),
         KEY idx_type (type),
         KEY idx_reference (reference_type, reference_id),
