@@ -95,11 +95,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // For immediate bookings, use current date/time as scheduled date/time
+    const now = new Date();
+    const scheduledDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const scheduledTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
+
     const result = await query<{ insertId: number }>(
       `INSERT INTO bookings
-         (customer_id, service_id, hours, duration_minutes, price_per_hour, total_price, address, lat, lng, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'finding')`,
-      [payload.userId, service_id, hours, duration_minutes, pricePerHour, totalPrice, address, bookingLat, bookingLng]
+         (customer_id, service_id, service_name, hours, duration_minutes, price_per_hour, total_price, final_price, price, address, lat, lng, scheduled_date, scheduled_time, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'finding')`,
+      [payload.userId, service_id, service.name, hours, duration_minutes, pricePerHour, totalPrice, totalPrice, totalPrice, address, bookingLat, bookingLng, scheduledDate, scheduledTime]
     );
 
     // Send push notification to admins about new booking

@@ -107,7 +107,8 @@ export async function POST(req: NextRequest) {
       roleName: user.role_name || 'User',
     };
 
-    // Short-lived access token (15 min) + long-lived refresh token (7 days)
+    // Long-lived access token (30 days) + refresh token (90 days) for admin panel
+    // Session persists until explicit logout or token expiration
     const accessToken  = signToken(tokenPayload);
     const refreshToken = signRefreshToken(tokenPayload);
 
@@ -121,21 +122,22 @@ export async function POST(req: NextRequest) {
 
     const isProduction = process.env.NODE_ENV === 'production';
 
-    // Access token — short TTL, matches signToken expiry
+    // Access token — long TTL (30 days) to prevent session expiration during admin work
+    // Session only expires on explicit logout or after 30 days of inactivity
     response.cookies.set('auth_token', accessToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
-      maxAge: 60 * 15,          // 15 minutes
+      maxAge: 60 * 60 * 24 * 30, // 30 days
       path: '/',
     });
 
-    // Refresh token — long TTL, path-scoped so it's only sent to /api/auth/refresh
+    // Refresh token — extended TTL (90 days) for long-term admin sessions
     response.cookies.set('refresh_token', refreshToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: 60 * 60 * 24 * 90, // 90 days
       path: '/api/auth/refresh',
     });
 
@@ -144,7 +146,7 @@ export async function POST(req: NextRequest) {
       httpOnly: false,
       secure: isProduction,
       sameSite: 'lax',
-      maxAge: 60 * 15,          // matches access token TTL
+      maxAge: 60 * 60 * 24 * 30, // 30 days - matches access token TTL
       path: '/',
     });
 

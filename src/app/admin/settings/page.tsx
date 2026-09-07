@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { Settings, Globe, Shield, CreditCard, Mail, Upload, X, Save, BarChart3, Database, Download, RefreshCw, FileText, Table2, Palette, Bell, Smartphone, MessageSquare, Eye, EyeOff, Wallet } from 'lucide-react';
+import { Settings, Globe, Shield, CreditCard, Mail, Upload, X, Save, BarChart3, Database, Download, RefreshCw, FileText, Table2, Palette, Bell, Smartphone, MessageSquare, Eye, EyeOff, Wallet, Video } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
 import { apiFetch } from '@/lib/apiFetch';
 
@@ -22,6 +22,7 @@ const TABS = [
   { id: 'auth',          label: 'Auth',          icon: <Shield size={15} /> },
   { id: 'payment',       label: 'Payment',       icon: <CreditCard size={15} /> },
   { id: 'wallet',        label: 'Wallet',        icon: <Wallet size={15} /> },
+  { id: 'webrtc',        label: 'WebRTC',        icon: <Video size={15} /> },
   { id: 'mail',          label: 'Mail',          icon: <Mail size={15} /> },
   { id: 'notifications', label: 'Notifications', icon: <Bell size={15} /> },
   { id: 'analytics',     label: 'Analytics',     icon: <BarChart3 size={15} /> },
@@ -1687,6 +1688,383 @@ function SettingsContent() {
                 These links are saved to settings and can be used anywhere in your app — e.g. footer, landing page, or in-app prompts. Leave a field empty to hide that store button.
               </p>
             </div>
+          </div>
+        )}
+
+        {/* ── WebRTC / Video Calling ──────────────────────────────── */}
+        {activeTab === 'webrtc' && (
+          <div className="p-6 space-y-6">
+            <div>
+              <h2 className="font-semibold text-[#2D2D2D]">WebRTC Video Calling Configuration</h2>
+              <p className="text-xs text-[#757575] mt-0.5">Configure TURN/STUN servers for video calling between customers and partners</p>
+            </div>
+
+            {/* Master Enable/Disable Toggle */}
+            <div className="border border-[#E0E0E0] rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white border border-purple-200 flex items-center justify-center shadow-sm">
+                    <Video size={20} className="text-[#4A2372]" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-[#2D2D2D]">Enable WebRTC Video Calling</label>
+                    <p className="text-xs text-[#757575] mt-0.5">Turn on/off in-app video calling feature</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={get('webrtc', 'webrtc_enabled') === '1'}
+                    onChange={(e) => set('webrtc', 'webrtc_enabled', e.target.checked ? '1' : '0')}
+                    className="sr-only peer"
+                  />
+                  <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-[#4A2372] shadow-inner"></div>
+                </label>
+              </div>
+
+              {/* Status Banner */}
+              {(() => {
+                const enabled = get('webrtc', 'webrtc_enabled') === '1';
+                if (enabled) {
+                  return (
+                    <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3.5">
+                      <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-xs text-green-700">
+                        <strong>WebRTC is enabled.</strong> Users can make video/audio calls within the app using WebRTC technology.
+                      </p>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3.5">
+                      <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-xs text-blue-700">
+                        <strong>WebRTC is disabled.</strong> The app will use device's native phone calling instead. 
+                        Users will be redirected to their phone dialer when they tap the call button.
+                      </p>
+                    </div>
+                  );
+                }
+              })()}
+
+              {/* Feature Comparison */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white border border-[#E0E0E0] rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Video size={16} className="text-[#4A2372]" />
+                    <h4 className="text-sm font-semibold text-[#2D2D2D]">WebRTC Calling (ON)</h4>
+                  </div>
+                  <ul className="space-y-2 text-xs text-[#757575]">
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>In-app video + audio calls</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>No phone minutes used</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>Call history tracked in app</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>Screen sharing possible</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600 mt-0.5">⚠</span>
+                      <span>Requires TURN server setup</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="bg-white border border-[#E0E0E0] rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Smartphone size={16} className="text-[#757575]" />
+                    <h4 className="text-sm font-semibold text-[#2D2D2D]">Device Calling (OFF)</h4>
+                  </div>
+                  <ul className="space-y-2 text-xs text-[#757575]">
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>Uses native phone dialer</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>No server setup needed</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-600 mt-0.5">✓</span>
+                      <span>Works everywhere instantly</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-600 mt-0.5">✗</span>
+                      <span>Audio only (no video)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-600 mt-0.5">✗</span>
+                      <span>Uses phone minutes/data</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* WebRTC Configuration - Only show if enabled */}
+            {get('webrtc', 'webrtc_enabled') === '1' && (
+              <>
+                {/* Info banner */}
+                <div className="flex items-start gap-3 bg-[var(--light-purple)] border border-[color-mix(in_srgb,var(--primary)_20%,transparent)] rounded-xl px-4 py-3.5">
+                  <Video size={15} className="text-[var(--primary)] mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-[var(--primary)]">
+                    <strong>WebRTC enables real-time video/audio calls</strong> between customers and partners. 
+                    STUN helps discover public IP addresses, while TURN relays media when direct peer-to-peer connection fails (e.g., behind strict NAT/firewalls).
+                  </p>
+                </div>
+
+                {/* Environment Selection */}
+                <div className="border border-[#E0E0E0] rounded-xl p-5 space-y-5">
+                  <div>
+                    <h3 className="font-semibold text-[#2D2D2D] text-sm">Environment</h3>
+                    <p className="text-xs text-[#757575] mt-0.5">Select the current environment (auto-detected from NODE_ENV)</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 p-1 rounded-xl w-fit bg-[#F9F9F9]">
+                    {['development', 'staging', 'production'].map((env) => (
+                      <button
+                        key={env}
+                        type="button"
+                        onClick={() => set('webrtc', 'webrtc_environment', env)}
+                        className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 capitalize ${
+                          (get('webrtc', 'webrtc_environment') || 'development') === env
+                            ? 'bg-[#4A2372] text-white shadow-sm scale-[1.03]'
+                            : 'text-[#757575] hover:text-[#2D2D2D] hover:scale-[1.02]'
+                        }`}
+                      >
+                        {env}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5">
+                    <svg className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-amber-700">
+                      The backend automatically uses the environment based on <code className="font-mono bg-amber-100 px-1 rounded">NODE_ENV</code>. 
+                      This setting is mainly for reference. Configure TURN servers for each environment below.
+                    </p>
+                  </div>
+                </div>
+
+                {/* TURN Server Configuration */}
+                <div className="border border-[#E0E0E0] rounded-xl p-5 space-y-5">
+                  <div>
+                    <h3 className="font-semibold text-[#2D2D2D] text-sm">TURN/STUN Server Settings</h3>
+                    <p className="text-xs text-[#757575] mt-0.5">Configure Coturn server for media relay</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <Field
+                      label="TURN Server Domain/IP"
+                      group="webrtc"
+                      field="turn_server"
+                      placeholder="turn.joinlinko.com"
+                      hint="Domain or IP address of your TURN server"
+                      get={get}
+                      set={set}
+                    />
+                    <Field
+                      label="STUN Port"
+                      group="webrtc"
+                      field="stun_port"
+                      type="number"
+                      placeholder="3478"
+                      hint="Default: 3478 (UDP)"
+                      get={get}
+                      set={set}
+                    />
+                    <Field
+                      label="TURN Port"
+                      group="webrtc"
+                      field="turn_port"
+                      type="number"
+                      placeholder="3478"
+                      hint="Default: 3478 (UDP/TCP)"
+                      get={get}
+                      set={set}
+                    />
+                    <Field
+                      label="TURNS Port (Secure)"
+                      group="webrtc"
+                      field="turns_port"
+                      type="number"
+                      placeholder="5349"
+                      hint="Default: 5349 (TLS/DTLS)"
+                      get={get}
+                      set={set}
+                    />
+                  </div>
+
+                  <SecretField
+                    label="TURN Shared Secret"
+                    group="webrtc"
+                    field="turn_secret"
+                    placeholder="Enter a strong secret key"
+                    hint="Used to generate temporary TURN credentials (keep this secure!)"
+                    get={get}
+                    set={set}
+                  />
+
+                  {/* Configuration Status */}
+                  {(() => {
+                    const configured =
+                      get('webrtc', 'turn_server').trim() !== '' &&
+                      get('webrtc', 'turn_secret').trim() !== '';
+                    return configured ? (
+                      <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3.5">
+                        <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-xs text-green-700">
+                          <strong>TURN server is configured.</strong> Video calls will use your TURN server for relay when direct connection fails.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5">
+                        <svg className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                        </svg>
+                        <p className="text-xs text-amber-700">
+                          <strong>TURN server not configured.</strong> Video calls may fail for users behind NAT/firewalls. 
+                          Public STUN servers will be used, but TURN relay won't be available.
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Coturn Installation Guide */}
+                <div className="border border-[#E0E0E0] rounded-xl p-5 space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-[#2D2D2D] text-sm">Coturn Server Setup</h3>
+                    <p className="text-xs text-[#757575] mt-0.5">Quick guide to install and configure Coturn</p>
+                  </div>
+
+                  <div className="bg-[#F9F9F9] rounded-lg p-4 space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold text-[#2D2D2D] mb-2">1. Install Coturn</p>
+                      <div className="bg-[#2D2D2D] text-white rounded-lg px-3 py-2 text-xs font-mono overflow-x-auto">
+                        # Ubuntu/Debian<br/>
+                        sudo apt-get update && sudo apt-get install coturn<br/><br/>
+                        # macOS<br/>
+                        brew install coturn
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold text-[#2D2D2D] mb-2">2. Configure Coturn</p>
+                      <p className="text-xs text-[#757575] mb-2">Edit <code className="font-mono bg-white px-1 rounded">/etc/turnserver.conf</code>:</p>
+                      <div className="bg-[#2D2D2D] text-white rounded-lg px-3 py-2 text-xs font-mono overflow-x-auto whitespace-pre">
+listening-port=3478{'\n'}
+tls-listening-port=5349{'\n'}
+realm=joinlinko.com{'\n'}
+server-name=turn.joinlinko.com{'\n'}
+use-auth-secret{'\n'}
+static-auth-secret=YOUR_SECRET_HERE{'\n'}
+total-quota=100{'\n'}
+stale-nonce=600{'\n'}
+no-multicast-peers{'\n'}
+no-stdout-log
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold text-[#2D2D2D] mb-2">3. Start Coturn</p>
+                      <div className="bg-[#2D2D2D] text-white rounded-lg px-3 py-2 text-xs font-mono overflow-x-auto">
+                        sudo systemctl start coturn<br/>
+                        sudo systemctl enable coturn
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold text-[#2D2D2D] mb-2">4. Open Firewall Ports</p>
+                      <div className="bg-[#2D2D2D] text-white rounded-lg px-3 py-2 text-xs font-mono overflow-x-auto">
+                        sudo ufw allow 3478/tcp<br/>
+                        sudo ufw allow 3478/udp<br/>
+                        sudo ufw allow 5349/tcp<br/>
+                        sudo ufw allow 49152:65535/udp  # Media relay ports
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3.5">
+                    <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-blue-700">
+                      For production, use a domain with SSL certificate for TURNS (secure TURN). 
+                      The <code className="font-mono bg-blue-100 px-1 rounded">static-auth-secret</code> in Coturn config must match the "TURN Shared Secret" above.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Testing & Troubleshooting */}
+                <div className="border border-[#E0E0E0] rounded-xl p-5 space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-[#2D2D2D] text-sm">Testing & Troubleshooting</h3>
+                    <p className="text-xs text-[#757575] mt-0.5">Verify your TURN server is working</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-[#4A2372] font-bold text-sm mt-0.5">•</span>
+                      <div>
+                        <p className="text-xs text-[#2D2D2D] font-semibold">Test TURN Server</p>
+                        <p className="text-xs text-[#757575] mt-1">
+                          Use{' '}
+                          <a
+                            href="https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#4A2372] font-semibold underline underline-offset-2 hover:opacity-80"
+                          >
+                            Trickle ICE
+                          </a>{' '}
+                          to test your TURN server. Add your TURN URL and credentials to verify connectivity.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <span className="text-[#4A2372] font-bold text-sm mt-0.5">•</span>
+                      <div>
+                        <p className="text-xs text-[#2D2D2D] font-semibold">Check Coturn Logs</p>
+                        <div className="bg-[#2D2D2D] text-white rounded-lg px-3 py-2 text-xs font-mono overflow-x-auto mt-1">
+                          sudo journalctl -u coturn -f
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <span className="text-[#4A2372] font-bold text-sm mt-0.5">•</span>
+                      <div>
+                        <p className="text-xs text-[#2D2D2D] font-semibold">Common Issues</p>
+                        <ul className="text-xs text-[#757575] mt-1 space-y-1 ml-3">
+                          <li>• Firewall blocking ports 3478, 5349, or 49152-65535</li>
+                          <li>• Incorrect shared secret (must match between Coturn and backend)</li>
+                          <li>• Domain not resolving or SSL certificate issues for TURNS</li>
+                          <li>• NAT/router not forwarding ports correctly</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 

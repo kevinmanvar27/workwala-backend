@@ -59,6 +59,14 @@ const KEY_GROUPS: Record<string, string> = {
   whatsapp_business_account_id:    'sms',
   whatsapp_access_token:           'sms',
   whatsapp_webhook_verify_token:   'sms',
+  // WebRTC / Video Calling
+  webrtc_enabled:                  'webrtc',
+  webrtc_environment:              'webrtc',
+  turn_server:                     'webrtc',
+  stun_port:                       'webrtc',
+  turn_port:                       'webrtc',
+  turns_port:                      'webrtc',
+  turn_secret:                     'webrtc',
 };
 
 // Keys whose values must be masked in GET responses to prevent secret leakage
@@ -73,6 +81,7 @@ const MASKED_KEYS = new Set([
   'msg91_auth_key',
   'whatsapp_access_token',
   'whatsapp_webhook_verify_token',
+  'turn_secret',
 ]);
 
 const MASK_VALUE = '••••••••';

@@ -26,21 +26,22 @@ export interface JWTPayload {
 }
 
 /**
- * Signs a long-lived access token (30 days) for mobile clients.
+ * Signs a long-lived access token (30 days) for admin panel and mobile clients.
  * Security is maintained via tokenVersion — incrementing it in the DB
  * (on logout or account suspension) immediately invalidates all issued tokens.
- * No refresh-token rotation is needed for a mobile-only OTP-based auth flow.
+ * Session persists until explicit logout or token expiration.
  */
 export function signToken(payload: JWTPayload): string {
   return jwt.sign(payload, JWT_SECRET!, { expiresIn: '30d' });
 }
 
 /**
- * Signs a long-lived refresh token (7 days).
+ * Signs a long-lived refresh token (90 days).
  * Stored in an httpOnly cookie; never exposed to JavaScript.
+ * Allows extended admin sessions without frequent re-authentication.
  */
 export function signRefreshToken(payload: JWTPayload): string {
-  return jwt.sign(payload, JWT_REFRESH_SECRET!, { expiresIn: '7d' });
+  return jwt.sign(payload, JWT_REFRESH_SECRET!, { expiresIn: '90d' });
 }
 
 export function verifyToken(token: string): JWTPayload | null {

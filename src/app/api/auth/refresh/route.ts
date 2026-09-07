@@ -7,11 +7,12 @@ import { randomBytes } from 'crypto';
  * POST /api/auth/refresh
  *
  * Rotates the session: reads the refresh_token httpOnly cookie, validates it,
- * checks tokenVersion for revocation, then issues a new short-lived access
- * token AND a new refresh token (rotation — old one is implicitly invalidated
- * because tokenVersion is re-checked on every use).
+ * checks tokenVersion for revocation, then issues a new long-lived access
+ * token (30 days) AND a new refresh token (90 days). Token rotation ensures
+ * old tokens are implicitly invalidated because tokenVersion is re-checked on every use.
  *
  * Called automatically by the frontend when a 401 is received on any request.
+ * Allows admin sessions to persist without frequent re-authentication.
  */
 export async function POST(req: NextRequest) {
   const refreshToken = req.cookies.get('refresh_token')?.value;
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     httpOnly: true,
     secure: isProduction,
     sameSite: 'lax',
-    maxAge: 60 * 15,          // 15 minutes — matches access token TTL
+    maxAge: 60 * 60 * 24 * 30, // 30 days — matches access token TTL
     path: '/',
   });
 
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
     httpOnly: true,
     secure: isProduction,
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24 * 90, // 90 days
     path: '/api/auth/refresh', // scoped — only sent to this endpoint
   });
 
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
     httpOnly: false,
     secure: isProduction,
     sameSite: 'lax',
-    maxAge: 60 * 15,
+    maxAge: 60 * 60 * 24 * 30, // 30 days
     path: '/',
   });
 

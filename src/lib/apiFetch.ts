@@ -7,6 +7,9 @@
  *
  * The CSRF token is stored in the `csrf_token` cookie (httpOnly: false) which
  * is set by the login route and refreshed on every token refresh.
+ * 
+ * Admin sessions persist for 30 days without expiration unless explicitly logged out.
+ * The automatic refresh mechanism ensures seamless session continuation.
  */
 
 function getCsrfToken(): string {

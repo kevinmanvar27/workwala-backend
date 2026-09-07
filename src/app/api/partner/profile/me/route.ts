@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success:         true,
+      id:              partner.id,  // Partner ID for WebRTC connection
       profile_complete: profileComplete,
       partner_status:  partner.status,
       name:            partner.name    ?? '',
