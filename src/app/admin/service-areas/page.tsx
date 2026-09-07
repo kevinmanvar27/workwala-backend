@@ -47,7 +47,15 @@ export default function ServiceAreasPage() {
 
   // UI State
   const [showForm, setShowForm] = useState(false);
-  const [editingArea, setEditingArea] = useState<ServiceArea | undefined>();
+  const [editingArea, setEditingArea] = useState<{
+    id: number;
+    name: string;
+    latitude: number;
+    longitude: number;
+    radius_meters: number;
+    city: string | null;
+    status: 'active' | 'disabled';
+  } | undefined>();
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Get CSRF token
@@ -154,7 +162,15 @@ export default function ServiceAreasPage() {
 
   // Open edit form
   const handleEdit = (area: ServiceArea) => {
-    setEditingArea(area);
+    setEditingArea({
+      id: area.id,
+      name: area.name,
+      latitude: parseFloat(area.latitude),
+      longitude: parseFloat(area.longitude),
+      radius_meters: area.radius_meters,
+      city: area.city,
+      status: area.status,
+    });
     setShowForm(true);
   };
 
