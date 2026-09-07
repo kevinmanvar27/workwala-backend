@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { sendOtp, getOtpExpiryMinutes } from '@/lib/msg91';
+import { sendWhatsAppOtp, isWhatsAppEnabled } from '@/lib/whatsapp';
 import { generateOtp, hashOtp } from '@/lib/otpUtils';
 
 // POST /api/customer/auth/send-otp
@@ -42,13 +43,23 @@ export async function POST(req: NextRequest) {
       [phone, otpHash, expiryMinutes]
     );
 
-    const result = await sendOtp(phone, otp);
+    // Check if WhatsApp is enabled, otherwise fallback to SMS
+    const whatsappEnabled = await isWhatsAppEnabled();
+    let result;
+    let method = 'sms';
+    
+    if (whatsappEnabled) {
+      result = await sendWhatsAppOtp(phone, otp);
+      method = 'whatsapp';
+    } else {
+      result = await sendOtp(phone, otp);
+    }
 
     if (!result.sent) {
       return NextResponse.json({ error: 'Failed to send OTP. Please try again.' }, { status: 500 });
     }
 
-    const response: Record<string, unknown> = { success: true, message: 'OTP sent successfully' };
+    const response: Record<string, unknown> = { success: true, message: 'OTP sent successfully', method };
     // In dev mode, include the OTP in the response for easy testing.
     // NEVER expose in production — guarded by both devMode flag AND NODE_ENV check.
     if (result.devMode && process.env.NODE_ENV !== 'production') {
@@ -57,6 +68,7 @@ export async function POST(req: NextRequest) {
       console.log(`│  [DEV] CUSTOMER OTP             │`);
       console.log(`│  Phone : ${phone}          │`);
       console.log(`│  OTP   : ${otp}                  │`);
+      console.log(`│  Method: ${method.toUpperCase().padEnd(22)}│`);
       console.log(`└─────────────────────────────────┘\n`);
     }
 

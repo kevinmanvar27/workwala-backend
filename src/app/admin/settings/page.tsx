@@ -1695,8 +1695,15 @@ function SettingsContent() {
           <div className="p-6 space-y-6">
             <div>
               <h2 className="font-semibold text-[#2D2D2D]">SMS / OTP Settings</h2>
-              <p className="text-xs text-[#757575] mt-0.5">Configure MSG91 to send OTP messages to partners during login</p>
+              <p className="text-xs text-[#757575] mt-0.5">Configure MSG91 or WhatsApp to send OTP messages</p>
             </div>
+
+            {/* ── MSG91 SMS Configuration ── */}
+            <div className="border border-[#E0E0E0] rounded-xl p-5 space-y-5">
+              <div>
+                <h3 className="font-semibold text-[#2D2D2D] text-sm">MSG91 SMS Configuration</h3>
+                <p className="text-xs text-[#757575] mt-0.5">Send OTPs via SMS using MSG91</p>
+              </div>
 
             {/* Config status banner */}
             {(() => {
@@ -1724,11 +1731,10 @@ function SettingsContent() {
 
             {/* MSG91 fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <Field
+              <SecretField
                 label="MSG91 Auth Key"
                 group="sms"
                 field="msg91_auth_key"
-                type="password"
                 placeholder="Enter your MSG91 auth key"
                 hint="Found in MSG91 Dashboard → API → Auth Key"
                 get={get}
@@ -1780,6 +1786,127 @@ function SettingsContent() {
                 with a variable <code className="font-mono bg-[color-mix(in_srgb,var(--primary)_8%,white)] px-1 rounded">VAR1</code> for the OTP value.
                 If credentials are not set, OTPs are printed to the server console for local development.
               </p>
+            </div>
+            </div>
+
+            {/* ── WhatsApp Meta API Configuration ── */}
+            <div className="border border-[#E0E0E0] rounded-xl p-5 space-y-5">
+              <div>
+                <h3 className="font-semibold text-[#2D2D2D] text-sm">WhatsApp Meta API Configuration</h3>
+                <p className="text-xs text-[#757575] mt-0.5">Send OTPs via WhatsApp using Meta Business API</p>
+              </div>
+
+              {/* WhatsApp Enable Toggle */}
+              <div className="flex items-center justify-between bg-[#F9F9F9] border border-[#E0E0E0] rounded-xl px-4 py-3">
+                <div>
+                  <label className="block text-sm font-semibold text-[#2D2D2D]">Enable WhatsApp Integration</label>
+                  <p className="text-xs text-[#757575] mt-0.5">Turn on/off WhatsApp messaging</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={get('sms', 'whatsapp_enabled') === '1'}
+                    onChange={(e) => set('sms', 'whatsapp_enabled', e.target.checked ? '1' : '0')}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#4A2372] rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#4A2372]"></div>
+                </label>
+              </div>
+
+              {/* WhatsApp Config status banner */}
+              {(() => {
+                const enabled = get('sms', 'whatsapp_enabled') === '1';
+                const configured =
+                  get('sms', 'whatsapp_phone_number_id').trim() !== '' &&
+                  get('sms', 'whatsapp_access_token').trim() !== '';
+                
+                if (!enabled) {
+                  return (
+                    <div className="flex items-start gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5">
+                      <svg className="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      </svg>
+                      <p className="text-xs text-gray-700"><strong>WhatsApp is disabled.</strong> Enable it to send OTPs via WhatsApp.</p>
+                    </div>
+                  );
+                }
+                
+                return configured ? (
+                  <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3.5">
+                    <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-green-700"><strong>WhatsApp is configured.</strong> OTPs will be sent via WhatsApp.</p>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5">
+                    <svg className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    </svg>
+                    <p className="text-xs text-amber-700">
+                      <strong>WhatsApp is not configured.</strong> Add your Meta API credentials below.
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* WhatsApp fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <Field
+                  label="Phone Number ID"
+                  group="sms"
+                  field="whatsapp_phone_number_id"
+                  placeholder="1255897550943348"
+                  hint="From Meta Business Settings → WhatsApp → API Setup"
+                  get={get}
+                  set={set}
+                />
+                <Field
+                  label="WhatsApp Business Account ID"
+                  group="sms"
+                  field="whatsapp_business_account_id"
+                  placeholder="1956538045015229"
+                  hint="From Meta Business Settings"
+                  get={get}
+                  set={set}
+                />
+                <SecretField
+                  label="Permanent Access Token"
+                  group="sms"
+                  field="whatsapp_access_token"
+                  placeholder="Enter your permanent access token"
+                  hint="System User Token from Meta Business Settings - keep secure"
+                  get={get}
+                  set={set}
+                />
+                <SecretField
+                  label="Webhook Verify Token"
+                  group="sms"
+                  field="whatsapp_webhook_verify_token"
+                  placeholder="aquatrek_webhook_2026"
+                  hint="Use this token when setting up webhook in Meta"
+                  get={get}
+                  set={set}
+                />
+              </div>
+
+              {/* Info note */}
+              <div className="flex items-start gap-3 bg-[var(--light-purple)] border border-[color-mix(in_srgb,var(--primary)_20%,transparent)] rounded-xl px-4 py-3.5">
+                <MessageSquare size={15} className="text-[var(--primary)] mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-[var(--primary)]">
+                  <strong>Setup Instructions:</strong> Create a WhatsApp Business Account in{' '}
+                  <a
+                    href="https://business.facebook.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold underline underline-offset-2 hover:opacity-80"
+                  >
+                    Meta Business Suite
+                  </a>
+                  . Create an OTP message template, get your Phone Number ID and generate a permanent access token from System Users.
+                  If WhatsApp is disabled, OTPs will be sent via SMS (MSG91) or logged to console in dev mode.
+                </p>
+              </div>
             </div>
           </div>
         )}

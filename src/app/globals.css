@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 :root {
   --background: #F9F9F9;
@@ -121,6 +122,19 @@ body {
 
 /* Smooth focus ring */
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ── Leaflet map fix ────────────────────────────────────────── */
+/* Tailwind preflight sets img { max-width: 100% } which breaks tile images  */
+.leaflet-container img.leaflet-tile,
+.leaflet-container img {
+  max-width: none !important;
+  max-height: none !important;
+  box-shadow: none !important;
+}
+.leaflet-container {
+  z-index: 0;
+  font-family: inherit;
+}
 
 /* ── Dynamic brand helpers used by components ───────────────── */
 /* These let Tailwind arbitrary-value classes like bg-[var(--primary)] work  */

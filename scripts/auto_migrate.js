@@ -249,6 +249,12 @@ const SCHEMA = {
       { key: 'partner_platform_fee_type', value: 'percentage', group: 'wallet', description: 'Platform fee type: percentage or fixed' },
       { key: 'partner_platform_fee_value', value: '10', group: 'wallet', description: 'Platform fee value (10 = 10% or ₹10)' },
       { key: 'partner_task_fee', value: '20', group: 'wallet', description: 'Per-task fee charged to partners' },
+      // WhatsApp Meta API Configuration
+      { key: 'whatsapp_enabled', value: '0', group: 'sms', description: 'Enable/disable WhatsApp OTP integration' },
+      { key: 'whatsapp_phone_number_id', value: '', group: 'sms', description: 'WhatsApp Phone Number ID from Meta Business' },
+      { key: 'whatsapp_business_account_id', value: '', group: 'sms', description: 'WhatsApp Business Account ID from Meta' },
+      { key: 'whatsapp_access_token', value: '', group: 'sms', description: 'Permanent Access Token from Meta Business' },
+      { key: 'whatsapp_webhook_verify_token', value: '', group: 'sms', description: 'Webhook Verify Token for Meta webhooks' },
     ]
   },
 };

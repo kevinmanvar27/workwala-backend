@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Shield, Key, FileText,
   Settings, LogOut, Menu, X, ChevronRight,
   Globe, Bell, Search, ExternalLink, Activity, BarChart3,
-  Briefcase, Tag, Languages, Wallet,
+  Briefcase, Tag, Languages, Wallet, MapPin,
   // notification panel icons
   CheckCheck, ArrowRight, Loader2, Check,
 } from 'lucide-react';
@@ -35,6 +35,7 @@ const NAV: NavItem[] = [
   { label: 'Withdrawals',   href: '/admin/withdrawals',    icon: <Wallet size={16} />,    permission: 'users.view' },
   { label: 'Categories',    href: '/admin/categories',     icon: <Tag size={16} />,       permission: 'users.view' },
   { label: 'Coupons',       href: '/admin/coupons',        icon: <Tag size={16} />,       permission: 'coupons.view' },
+  { label: 'Service Areas', href: '/admin/service-areas',  icon: <MapPin size={16} />,    permission: 'service-areas.manage' },
   { label: 'Pages',         href: '/admin/pages',         icon: <FileText size={16} />,  permission: 'pages.view' },
   { label: 'Translations',  href: '/admin/translations',  icon: <Languages size={16} />, permission: 'settings.view' },
   { label: 'Notifications', href: '/admin/notifications', icon: <Bell size={16} />,      permission: 'notifications.view' },

@@ -53,6 +53,12 @@ const KEY_GROUPS: Record<string, string> = {
   msg91_template_id:          'sms',
   msg91_sender_id:            'sms',
   msg91_otp_expiry_minutes:   'sms',
+  // WhatsApp / OTP (Meta API)
+  whatsapp_enabled:                'sms',
+  whatsapp_phone_number_id:        'sms',
+  whatsapp_business_account_id:    'sms',
+  whatsapp_access_token:           'sms',
+  whatsapp_webhook_verify_token:   'sms',
 };
 
 // Keys whose values must be masked in GET responses to prevent secret leakage
@@ -65,6 +71,8 @@ const MASKED_KEYS = new Set([
   'google_client_secret',
   'apple_client_secret',
   'msg91_auth_key',
+  'whatsapp_access_token',
+  'whatsapp_webhook_verify_token',
 ]);
 
 const MASK_VALUE = '••••••••';
