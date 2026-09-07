@@ -56,7 +56,13 @@ export async function GET(request: Request) {
     const turnSecret = config.turn_secret || 'mySecretKey123';
 
     // Build ICE servers configuration
-    const iceServers = [
+    interface IceServer {
+      urls: string;
+      username?: string;
+      credential?: string;
+    }
+    
+    const iceServers: IceServer[] = [
       // Public STUN servers (always available as fallback)
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },

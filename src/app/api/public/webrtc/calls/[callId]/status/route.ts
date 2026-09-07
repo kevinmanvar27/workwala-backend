@@ -15,12 +15,12 @@ const DB_CONFIG = {
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { callId: string } }
+  { params }: { params: Promise<{ callId: string }> }
 ) {
   let connection;
   
   try {
-    const { callId } = params;
+    const { callId } = await params;
     const body = await request.json();
     const { status, duration, connectionType, endReason } = body;
     
@@ -113,12 +113,12 @@ export async function PUT(
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { callId: string } }
+  { params }: { params: Promise<{ callId: string }> }
 ) {
   let connection;
   
   try {
-    const { callId } = params;
+    const { callId } = await params;
     
     connection = await mysql.createConnection(DB_CONFIG);
     
