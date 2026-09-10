@@ -59,6 +59,7 @@ const NAV: NavItem[] = [
       { label: 'Database',      href: '/admin/settings?tab=database' },
       { label: 'App Links',     href: '/admin/settings?tab=app-links' },
       { label: 'SMS / OTP',     href: '/admin/settings?tab=sms' },
+      { label: 'Booking Search', href: '/admin/settings?tab=booking-search' },
     ],
   },
 ];
