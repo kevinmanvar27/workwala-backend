@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Plus, Edit2, Trash2, MapPin, Search, Filter } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
 import ServiceAreaForm from '@/components/admin/ServiceAreaForm';
+import ServiceAreaRequestsModal from '@/components/admin/ServiceAreaRequestsModal';
 
 // ── TYPES ─────────────────────────────────────────────────────────────────────
 interface ServiceArea {
@@ -47,6 +48,7 @@ export default function ServiceAreasPage() {
 
   // UI State
   const [showForm, setShowForm] = useState(false);
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [editingArea, setEditingArea] = useState<{
     id: number;
     name: string;
@@ -204,13 +206,22 @@ export default function ServiceAreasPage() {
               Manage geographic coverage zones for service availability
             </p>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Add Service Area
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowRequestsModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <MapPin className="w-5 h-5" />
+              View Area Requests
+            </button>
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add Service Area
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -404,6 +415,13 @@ export default function ServiceAreasPage() {
             area={editingArea}
             onClose={handleCloseForm}
             onSuccess={handleFormSuccess}
+          />
+        )}
+
+        {/* Requests Modal */}
+        {showRequestsModal && (
+          <ServiceAreaRequestsModal
+            onClose={() => setShowRequestsModal(false)}
           />
         )}
       </div>

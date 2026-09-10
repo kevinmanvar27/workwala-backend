@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   Plus, Pencil, Trash2, ToggleLeft, ToggleRight,
-  Tag, X, Check, Loader2, GripVertical, Upload, Image as ImageIcon,
+  Tag, X, Check, Loader2, Upload, MapPin,
 } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
 import { apiFetch } from '@/lib/apiFetch';
@@ -24,6 +24,15 @@ interface Category {
   is_active: number;
   sort_order: number;
   created_at: string;
+  // Array of assigned service area IDs — empty means "available everywhere"
+  service_area_ids: number[];
+}
+
+interface ServiceAreaOption {
+  id: number;
+  name: string;
+  city: string | null;
+  status: 'active' | 'disabled';
 }
 
 const PRESET_COLORS = [
@@ -72,6 +81,10 @@ export default function CategoriesPage() {
   const [selectedLibraryIcon, setSelectedLibraryIcon] = useState<string | null>(null);
   const [showIconLibrary, setShowIconLibrary] = useState(false);
 
+  // Service area state
+  const [allServiceAreas, setAllServiceAreas] = useState<ServiceAreaOption[]>([]);
+  const [selectedAreaIds, setSelectedAreaIds] = useState<number[]>([]);
+
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
   const fetchCategories = useCallback(async () => {
@@ -107,6 +120,23 @@ export default function CategoriesPage() {
     fetchIcons();
   }, []);
 
+  // ── Fetch all active service areas for the multi-select ───────────────────
+
+  useEffect(() => {
+    const fetchAreas = async () => {
+      try {
+        const res = await fetch('/api/admin/service-areas?limit=100');
+        const data = await res.json();
+        if (res.ok && data.areas) {
+          setAllServiceAreas(data.areas);
+        }
+      } catch (err) {
+        console.error('Failed to fetch service areas:', err);
+      }
+    };
+    fetchAreas();
+  }, []);
+
   // ── Open modals ────────────────────────────────────────────────────────────
 
   const openCreate = () => {
@@ -117,6 +147,7 @@ export default function CategoriesPage() {
     setCurrentIconPath(null);
     setSelectedLibraryIcon(null);
     setShowIconLibrary(false);
+    setSelectedAreaIds([]);
     setModal('create');
   };
 
@@ -137,6 +168,7 @@ export default function CategoriesPage() {
     setCurrentIconPath(cat.icon_path);
     setSelectedLibraryIcon(null);
     setShowIconLibrary(false);
+    setSelectedAreaIds(cat.service_area_ids ?? []);
     setModal('edit');
   };
 
@@ -148,6 +180,15 @@ export default function CategoriesPage() {
     setCurrentIconPath(null);
     setSelectedLibraryIcon(null);
     setShowIconLibrary(false);
+    setSelectedAreaIds([]);
+  };
+
+  // ── Toggle service area selection ──────────────────────────────────────────
+
+  const toggleAreaId = (id: number) => {
+    setSelectedAreaIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   };
 
   // ── Handle icon file selection ─────────────────────────────────────────────
@@ -223,6 +264,8 @@ export default function CategoriesPage() {
         formData.append('sort_order', String(parseInt(form.sort_order) || 0));
         if (form.icon_color) formData.append('icon_color', form.icon_color);
         formData.append('icon', iconFile);
+        // Send service area IDs as JSON string in multipart
+        formData.append('service_area_ids', JSON.stringify(selectedAreaIds));
 
         const res = await apiFetch('/api/admin/categories', {
           method: isEdit ? 'PATCH' : 'POST',
@@ -250,6 +293,8 @@ export default function CategoriesPage() {
           sort_order: parseInt(form.sort_order) || 0,
           icon_color: form.icon_color || null,
           ...(selectedLibraryIcon ? { icon_path: selectedLibraryIcon } : {}),
+          // Always send service_area_ids so assignments are updated on every save
+          service_area_ids: selectedAreaIds,
         };
 
         const res = await apiFetch('/api/admin/categories', {
@@ -347,11 +392,12 @@ export default function CategoriesPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[#E0E0E0]">
-                  {/* Sr. No. column header */}
                   <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5 w-12">Sr.</th>
                   <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5">Category</th>
                   <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5">Price / Hr</th>
                   <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5 hidden md:table-cell">Color</th>
+                  {/* Service Areas column */}
+                  <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5 hidden lg:table-cell">Service Areas</th>
                   <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5 hidden lg:table-cell">Sort</th>
                   <th className="text-left text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5">Status</th>
                   <th className="text-right text-[11px] font-semibold text-[#757575] uppercase tracking-wider px-6 py-3.5">Actions</th>
@@ -370,7 +416,7 @@ export default function CategoriesPage() {
                           </div>
                         </div>
                       </td>
-                      {[...Array(6)].map((_, j) => (
+                      {[...Array(7)].map((_, j) => (
                         <td key={j} className="px-6 py-4">
                           <div className="h-3 bg-[var(--light-purple)] rounded w-16 animate-pulse" />
                         </td>
@@ -379,7 +425,7 @@ export default function CategoriesPage() {
                   ))
                 ) : categories.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-20 text-center">
+                    <td colSpan={8} className="px-6 py-20 text-center">
                       <div className="w-14 h-14 bg-[var(--light-purple)] rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <Tag size={24} style={{ color: 'var(--primary)' }} />
                       </div>
@@ -391,7 +437,7 @@ export default function CategoriesPage() {
                   categories.map((cat, index) => (
                     <tr key={cat.id} className="border-b border-[#F9F9F9] last:border-0 hover:bg-[#F9F9F9]/60 transition-colors">
 
-                      {/* Sr. No. cell */}
+                      {/* Sr. No. */}
                       <td className="px-6 py-4">
                         <span className="text-xs font-medium text-[#757575]">{index + 1}</span>
                       </td>
@@ -399,7 +445,6 @@ export default function CategoriesPage() {
                       {/* Name + slug */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          {/* Icon or color preview swatch */}
                           {cat.icon_path ? (
                             <div className="w-9 h-9 rounded-xl border flex-shrink-0 flex items-center justify-center overflow-hidden" style={{ borderColor: cat.border_color }}>
                               <img 
@@ -435,6 +480,18 @@ export default function CategoriesPage() {
                           <span className="text-[#bdbdbd]">·</span>
                           <span className="text-xs font-mono text-[#757575]">{cat.border_color}</span>
                         </div>
+                      </td>
+
+                      {/* Service Areas badge */}
+                      <td className="px-6 py-4 hidden lg:table-cell">
+                        {cat.service_area_ids && cat.service_area_ids.length > 0 ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--light-purple)] text-[11px] font-semibold" style={{ color: 'var(--primary)' }}>
+                            <MapPin size={10} />
+                            {cat.service_area_ids.length} {cat.service_area_ids.length === 1 ? 'area' : 'areas'}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[#bdbdbd]">All areas</span>
+                        )}
                       </td>
 
                       {/* Sort order */}
@@ -702,6 +759,87 @@ export default function CategoriesPage() {
                     className="w-full pl-8 pr-4 py-2.5 border border-[#E0E0E0] rounded-xl text-sm text-[#2D2D2D] placeholder-[#bdbdbd] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all"
                   />
                 </div>
+              </div>
+
+              {/* ── Service Areas ──────────────────────────────────────────── */}
+              <div>
+                <label className="block text-xs font-semibold text-[#757575] uppercase tracking-wider mb-1.5">
+                  Service Areas
+                </label>
+                <p className="text-[10px] text-[#bdbdbd] mb-2">
+                  Select areas where this category is available. Leave empty to allow all areas.
+                </p>
+
+                {allServiceAreas.length === 0 ? (
+                  <p className="text-xs text-[#bdbdbd] italic py-2">No service areas found. Add areas in the Service Areas page first.</p>
+                ) : (
+                  <div className="border border-[#E0E0E0] rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                    {allServiceAreas.map((area, idx) => {
+                      const isSelected = selectedAreaIds.includes(area.id);
+                      const isDisabled = area.status === 'disabled';
+                      return (
+                        <button
+                          key={area.id}
+                          type="button"
+                          onClick={() => !isDisabled && toggleAreaId(area.id)}
+                          disabled={isDisabled}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all
+                            ${idx !== 0 ? 'border-t border-[#F0F0F0]' : ''}
+                            ${isDisabled
+                              ? 'opacity-40 cursor-not-allowed bg-white'
+                              : isSelected
+                                ? 'bg-[var(--light-purple)]'
+                                : 'bg-white hover:bg-[#F9F9F9]'
+                            }`}
+                        >
+                          {/* Checkbox visual */}
+                          <div className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all
+                            ${isSelected
+                              ? 'border-[var(--primary)] bg-[var(--primary)]'
+                              : 'border-[#D0D0D0] bg-white'
+                            }`}
+                          >
+                            {isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
+                          </div>
+
+                          <MapPin size={13} className={isSelected ? 'text-[var(--primary)]' : 'text-[#bdbdbd]'} />
+
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-semibold truncate ${isSelected ? 'text-[#2D2D2D]' : 'text-[#555]'}`}>
+                              {area.name}
+                            </p>
+                            {area.city && (
+                              <p className="text-[10px] text-[#bdbdbd] truncate">{area.city}</p>
+                            )}
+                          </div>
+
+                          {isDisabled && (
+                            <span className="text-[9px] font-medium text-[#bdbdbd] bg-[#F0F0F0] px-1.5 py-0.5 rounded flex-shrink-0">
+                              Disabled
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Summary pill */}
+                {selectedAreaIds.length > 0 && (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <MapPin size={11} style={{ color: 'var(--primary)' }} />
+                    <span className="text-[11px] font-semibold" style={{ color: 'var(--primary)' }}>
+                      {selectedAreaIds.length} {selectedAreaIds.length === 1 ? 'area' : 'areas'} selected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAreaIds([])}
+                      className="ml-auto text-[10px] text-[#bdbdbd] hover:text-red-500 transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Color picker */}

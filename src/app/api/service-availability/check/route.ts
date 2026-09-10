@@ -59,7 +59,9 @@ interface ServiceArea {
 }
 
 // ── POST /api/service-availability/check ──────────────────────────────────────
-// Public endpoint to check if a location is within any active service area
+// Public endpoint to check if a location is within any active service area.
+// Optionally accepts category_id to check only areas assigned to that category.
+// If category_id is omitted OR the category has no assigned areas → checks all areas.
 export async function POST(req: NextRequest) {
   try {
     // Rate limiting
@@ -87,9 +89,9 @@ export async function POST(req: NextRequest) {
 
     // Parse request body
     const body = await req.json();
-    const { latitude, longitude } = body;
+    const { latitude, longitude, category_id } = body;
 
-    // Validate input
+    // Validate coordinates
     if (latitude === undefined || longitude === undefined) {
       return NextResponse.json(
         { 
@@ -123,24 +125,49 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Execute Haversine query to find matching service areas
+    // ── Determine which service areas to check ─────────────────────────────
+    // If category_id is provided, check only areas assigned to that category.
+    // If the category has NO assigned areas → fall back to checking all areas
+    // (this preserves backward compatibility for categories without restrictions).
+    let areaFilter = ''; // extra JOIN/WHERE clause injected into the Haversine query
+
+    if (category_id !== undefined && category_id !== null) {
+      const catId = parseInt(String(category_id));
+      if (!isNaN(catId) && catId > 0) {
+        // Check how many areas are assigned to this category
+        const assignedAreas = await query<{ service_area_id: number }[]>(
+          `SELECT service_area_id FROM category_service_areas WHERE category_id = ?`,
+          [catId]
+        );
+
+        if (assignedAreas.length > 0) {
+          // Category has specific area restrictions — only check those areas
+          const areaIds = assignedAreas.map((r) => r.service_area_id).join(',');
+          areaFilter = `AND sa.id IN (${areaIds})`;
+        }
+        // If assignedAreas.length === 0 → no restriction → check all areas (areaFilter stays '')
+      }
+    }
+
+    // ── Haversine query — find nearest matching active service area ─────────
     // Formula calculates great-circle distance between two points on Earth
     const areas = await query<ServiceArea[]>(
       `SELECT 
-        id,
-        name,
-        latitude,
-        longitude,
-        radius_meters,
-        city,
+        sa.id,
+        sa.name,
+        sa.latitude,
+        sa.longitude,
+        sa.radius_meters,
+        sa.city,
         (6371000 * acos(
-          cos(radians(?)) * cos(radians(latitude)) *
-          cos(radians(longitude) - radians(?)) +
-          sin(radians(?)) * sin(radians(latitude))
+          cos(radians(?)) * cos(radians(sa.latitude)) *
+          cos(radians(sa.longitude) - radians(?)) +
+          sin(radians(?)) * sin(radians(sa.latitude))
         )) AS distance_meters
-      FROM service_areas
-      WHERE status = 'active'
-      HAVING distance_meters <= radius_meters
+      FROM service_areas sa
+      WHERE sa.status = 'active'
+      ${areaFilter}
+      HAVING distance_meters <= sa.radius_meters
       ORDER BY distance_meters ASC
       LIMIT 1`,
       [lat, lng, lat]

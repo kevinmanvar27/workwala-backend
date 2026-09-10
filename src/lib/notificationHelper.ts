@@ -380,3 +380,128 @@ export async function notifyAllPartners(
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// notifyNearbyPartners  (NEW — wave-based radius notifications)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Sends a push notification to approved partners whose FRESH location
+ * (updated within the last 30 minutes) is within `radiusKm` of the booking.
+ *
+ * Falls back to notifyAllPartners when:
+ *   - the booking has no lat/lng stored (old app versions / manual bookings)
+ *
+ * Partners with stale / missing location are intentionally excluded from
+ * wave notifications — they will still see the job via polling because the
+ * pending-jobs endpoint shows all bookings when partner location is stale.
+ */
+export async function notifyNearbyPartners(
+  bookingId: number,
+  radiusKm: number,
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+  categorySlug?: string
+): Promise<void> {
+  try {
+    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🔔 [NOTIFY NEARBY] Booking #${bookingId} | Radius: ${radiusKm}km | Title: ${title}`);
+
+    const pushEnabled = await isPushEnabled();
+    if (!pushEnabled) {
+      console.log(`⏭️  [NOTIFY NEARBY] Push disabled globally — skipping`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+      return;
+    }
+
+    // Get booking coordinates
+    const bookingRows = await query<{ lat: number | null; lng: number | null }[]>(
+      `SELECT lat, lng FROM bookings WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+      [bookingId]
+    );
+
+    if (bookingRows.length === 0) {
+      console.log(`⚠️  [NOTIFY NEARBY] Booking #${bookingId} not found — skipping`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+      return;
+    }
+
+    const bookingLat = bookingRows[0].lat != null ? Number(bookingRows[0].lat) : null;
+    const bookingLng = bookingRows[0].lng != null ? Number(bookingRows[0].lng) : null;
+
+    // No booking coordinates — fall back to broadcasting to all partners
+    if (bookingLat === null || bookingLng === null) {
+      console.log(`⚠️  [NOTIFY NEARBY] Booking #${bookingId} has no coords — falling back to notifyAllPartners`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+      await notifyAllPartners(title, body, data, categorySlug);
+      return;
+    }
+
+    // Fetch approved partners with a fresh location (updated within 30 minutes)
+    // and within the requested radius using the Haversine formula in SQL.
+    const LOCATION_STALE_MINUTES = 30;
+    const partners = await query<{ id: number; name: string | null; phone: string }[]>(
+      `SELECT p.id, p.name, p.phone
+       FROM partners p
+       WHERE p.status IN ('active', 'approved')
+         AND p.deleted_at IS NULL
+         AND p.lat IS NOT NULL
+         AND p.lng IS NOT NULL
+         AND p.last_seen_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
+         AND (
+           6371 * 2 * ASIN(SQRT(
+             POW(SIN((RADIANS(p.lat)  - RADIANS(?)) / 2), 2) +
+             COS(RADIANS(?)) * COS(RADIANS(p.lat)) *
+             POW(SIN((RADIANS(p.lng)  - RADIANS(?)) / 2), 2)
+           ))
+         ) <= ?`,
+      [LOCATION_STALE_MINUTES, bookingLat, bookingLat, bookingLng, radiusKm]
+    );
+
+    console.log(`👥 [NOTIFY NEARBY] ${partners.length} partner(s) within ${radiusKm}km`);
+
+    if (partners.length === 0) {
+      console.log(`ℹ️  [NOTIFY NEARBY] No nearby partners to notify — they will see the job via polling`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+      return;
+    }
+
+    // One shared notification record for all nearby partners
+    const notificationId = await createNotificationRecord(title, body, categorySlug);
+    if (!notificationId) {
+      console.log(`⚠️  [NOTIFY NEARBY] Could not create notification record`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+      return;
+    }
+    console.log(`📝 [NOTIFY NEARBY] Created notification record #${notificationId}`);
+
+    for (const partner of partners) {
+      const partnerName = partner.name || partner.phone;
+
+      const tokens = await query<{ fcm_token: string }[]>(
+        `SELECT fcm_token FROM partner_fcm_tokens
+         WHERE partner_id = ? AND deleted_at IS NULL`,
+        [partner.id]
+      );
+
+      if (tokens.length === 0) {
+        await writeLog(notificationId, 'partner', partner.id, partnerName, null, 'pending', 'No FCM token registered');
+        console.log(`   📭 ${partnerName} — no FCM token, inbox log written`);
+        continue;
+      }
+
+      for (const { fcm_token } of tokens) {
+        const ok = await sendPushNotification(fcm_token, title, body, data);
+        await writeLog(notificationId, 'partner', partner.id, partnerName, fcm_token, ok ? 'sent' : 'failed', ok ? undefined : 'FCM delivery failed');
+        console.log(`   ${ok ? '✅' : '❌'} ${partnerName} — FCM ${ok ? 'sent' : 'failed'}`);
+      }
+    }
+
+    console.log(`✅ [NOTIFY NEARBY] Done for booking #${bookingId} at ${radiusKm}km`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+  } catch (err) {
+    console.error(`❌ [NOTIFY NEARBY] Unhandled error for booking #${bookingId}:`, err);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+  }
+}

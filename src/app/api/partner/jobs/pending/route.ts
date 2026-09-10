@@ -148,6 +148,7 @@ export async function GET(req: NextRequest) {
       lng: number | null;
       icon_url: string | null;
       bg_color: string;
+      search_radius_km: number | null; // null = old booking, no wave filter
     };
 
     console.log(`🔍 [PENDING JOBS] Searching for bookings matching categories: ${partnerCategories.join(', ')}`);
@@ -165,7 +166,8 @@ export async function GET(req: NextRequest) {
          b.lat,
          b.lng,
          s.icon_url,
-         COALESCE(s.bg_color, '#F0F5FF')     AS bg_color
+         COALESCE(s.bg_color, '#F0F5FF')     AS bg_color,
+         b.search_radius_km                  AS search_radius_km
        FROM bookings b
        JOIN services  s   ON s.id = b.service_id
        LEFT JOIN categories cat
@@ -176,6 +178,7 @@ export async function GET(req: NextRequest) {
          AND b.deleted_at IS NULL
          AND COALESCE(cat.name, s.name) COLLATE utf8mb4_unicode_ci
              IN (${castPlaceholders})
+         AND (b.search_expires_at IS NULL OR b.search_expires_at > NOW())
        ORDER BY b.created_at DESC`,
       [...partnerCategories]
     );
@@ -201,7 +204,6 @@ export async function GET(req: NextRequest) {
       resolvedLng: number | null;
       distanceKm: number | null;
     };
-
     const resolved: ResolvedBooking[] = bookings.map((b) => {
       let resolvedLat = b.lat != null ? Number(b.lat) : null;
       let resolvedLng = b.lng != null ? Number(b.lng) : null;
@@ -243,10 +245,12 @@ export async function GET(req: NextRequest) {
     });
 
     // ── Distance filter ───────────────────────────────────────────────────────
-    // Only apply when we have FRESH partner coordinates (checked above).
-    // If partner location is stale/unknown → show all matching jobs.
-    // Distance limit: 100 km (covers typical Indian city + surrounding areas).
-    const DISTANCE_LIMIT_KM = 100;
+    // Wave bookings (search_radius_km IS NOT NULL): use the current wave radius
+    //   as the limit so the partner only sees the job once the wave reaches them.
+    // Old bookings (search_radius_km IS NULL): fall back to 100 km — existing
+    //   behaviour is fully preserved, no breaking change.
+    // If partner location is stale/unknown → skip filter entirely (show all jobs).
+    const LEGACY_DISTANCE_LIMIT_KM = 100;
 
     const best = resolved.find((b) => {
       // No fresh partner location → always show the job
@@ -259,9 +263,10 @@ export async function GET(req: NextRequest) {
         console.log(`✅ [PENDING JOBS] Booking #${b.id} - No booking coords, showing job`);
         return true;
       }
-      // Both have coords — apply limit
-      const withinLimit = b.distanceKm <= DISTANCE_LIMIT_KM;
-      console.log(`${withinLimit ? '✅' : '❌'} [PENDING JOBS] Booking #${b.id} - Distance ${b.distanceKm}km ${withinLimit ? '(within 100km limit)' : '(EXCEEDS 100km limit)'}`);
+      // Both have coords — apply wave radius (or legacy 100 km for old bookings)
+      const limitKm = b.search_radius_km != null ? b.search_radius_km : LEGACY_DISTANCE_LIMIT_KM;
+      const withinLimit = b.distanceKm <= limitKm;
+      console.log(`${withinLimit ? '✅' : '❌'} [PENDING JOBS] Booking #${b.id} - Distance ${b.distanceKm}km vs limit ${limitKm}km${b.search_radius_km != null ? ` (wave ${b.search_radius_km}km)` : ' (legacy)'}`);
       return withinLimit;
     });
 

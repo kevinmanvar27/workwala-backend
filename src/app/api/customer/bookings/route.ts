@@ -1,7 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireMobileAuth } from '@/lib/mobileAuth';
-import { notifyAdmins, notifyAllPartners } from '@/lib/notificationHelper';
+import { notifyAdmins, notifyNearbyPartners } from '@/lib/notificationHelper';
+
+// ── Wave search configuration ─────────────────────────────────────────────────
+// Defaults used when no DB setting exists yet.
+const DEFAULT_WAVE_INTERVAL_SECONDS = 30;
+const DEFAULT_WAVE_MAX_RADIUS_KM    = 5;
+
+async function getWaveSettings(): Promise<{ intervalSeconds: number; maxRadiusKm: number }> {
+  try {
+    const rows = await query<{ key_name: string; value: string }[]>(
+      `SELECT key_name, value FROM settings
+       WHERE key_name IN ('booking_search_wave_interval_seconds', 'booking_search_max_radius_km')
+         AND deleted_at IS NULL`
+    );
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.key_name] = r.value;
+    return {
+      intervalSeconds: parseInt(map['booking_search_wave_interval_seconds'] ?? '', 10) || DEFAULT_WAVE_INTERVAL_SECONDS,
+      maxRadiusKm:     parseInt(map['booking_search_max_radius_km']          ?? '', 10) || DEFAULT_WAVE_MAX_RADIUS_KM,
+    };
+  } catch {
+    return { intervalSeconds: DEFAULT_WAVE_INTERVAL_SECONDS, maxRadiusKm: DEFAULT_WAVE_MAX_RADIUS_KM };
+  }
+}
 
 // POST /api/customer/bookings — create a new booking
 export async function POST(req: NextRequest) {
@@ -100,38 +123,55 @@ export async function POST(req: NextRequest) {
     const scheduledDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const scheduledTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
 
+    // Total search window in seconds before the booking auto-cancels
+    const { intervalSeconds, maxRadiusKm } = await getWaveSettings();
+    const totalSearchSeconds = maxRadiusKm * intervalSeconds;
+
     const result = await query<{ insertId: number }>(
       `INSERT INTO bookings
-         (customer_id, service_id, service_name, hours, duration_minutes, price_per_hour, total_price, final_price, price, address, lat, lng, scheduled_date, scheduled_time, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'finding')`,
-      [payload.userId, service_id, service.name, hours, duration_minutes, pricePerHour, totalPrice, totalPrice, totalPrice, address, bookingLat, bookingLng, scheduledDate, scheduledTime]
+         (customer_id, service_id, service_name, hours, duration_minutes, price_per_hour,
+          total_price, final_price, price, address, lat, lng, scheduled_date, scheduled_time,
+          status, search_radius_km, radius_expanded_at, search_expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'finding',
+               1, NOW(), DATE_ADD(NOW(), INTERVAL ? SECOND))`,
+      [
+        payload.userId, service_id, service.name, hours, duration_minutes,
+        pricePerHour, totalPrice, totalPrice, totalPrice,
+        address, bookingLat, bookingLng, scheduledDate, scheduledTime,
+        totalSearchSeconds,
+      ]
     );
 
-    // Send push notification to admins about new booking
-    console.log(`[NOTIFY] New booking created: ID ${result.insertId}, Customer: ${payload.userId}, Service: ${service.name}, Price: ₹${totalPrice}`);
+    const bookingId = result.insertId;
+
+    // Notify admins about the new booking
+    console.log(`[NOTIFY] New booking #${bookingId} — ${service.name} ₹${totalPrice}`);
     await notifyAdmins(
       'notify_new_booking',
       'New Booking',
       `New booking for ${service.name} - ₹${totalPrice} (${duration_minutes} min)`,
-      { 
-        type: 'new_booking', 
-        booking_id: result.insertId.toString(), 
+      {
+        type: 'new_booking',
+        booking_id: bookingId.toString(),
         customer_id: payload.userId.toString(),
         service_name: service.name,
         total_price: totalPrice.toString(),
         duration_minutes: duration_minutes.toString(),
-        address
+        address,
       },
       'user-notifications'
     );
 
-    // Notify all available partners about the new job
-    await notifyAllPartners(
+    // Wave 1: notify partners within 1 km.
+    // Falls back to all partners automatically if booking has no coordinates.
+    await notifyNearbyPartners(
+      bookingId,
+      1,
       'New Job Available',
       `New ${service.name} booking near you - ₹${totalPrice} (${duration_minutes} min)`,
       {
         type: 'new_booking',
-        booking_id: result.insertId.toString(),
+        booking_id: bookingId.toString(),
         service_name: service.name,
         total_price: totalPrice.toString(),
         duration_minutes: duration_minutes.toString(),
@@ -141,7 +181,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      booking_id: result.insertId,
+      booking_id: bookingId,
       service_name: service.name,
       duration_minutes,
       price_per_hour: pricePerHour,

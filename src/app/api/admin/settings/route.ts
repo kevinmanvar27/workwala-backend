@@ -67,6 +67,9 @@ const KEY_GROUPS: Record<string, string> = {
   turn_port:                       'webrtc',
   turns_port:                      'webrtc',
   turn_secret:                     'webrtc',
+  // Booking Wave Search
+  booking_search_wave_interval_seconds: 'booking_search',
+  booking_search_max_radius_km:         'booking_search',
 };
 
 // Keys whose values must be masked in GET responses to prevent secret leakage

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { Settings, Globe, Shield, CreditCard, Mail, Upload, X, Save, BarChart3, Database, Download, RefreshCw, FileText, Table2, Palette, Bell, Smartphone, MessageSquare, Eye, EyeOff, Wallet, Video } from 'lucide-react';
+import { Settings, Globe, Shield, CreditCard, Mail, Upload, X, Save, BarChart3, Database, Download, RefreshCw, FileText, Table2, Palette, Bell, Smartphone, MessageSquare, Eye, EyeOff, Wallet, Video, Search } from 'lucide-react';
 import PermissionGuard from '@/components/admin/PermissionGuard';
 import { apiFetch } from '@/lib/apiFetch';
 
@@ -30,6 +30,7 @@ const TABS = [
   { id: 'database',      label: 'Database',      icon: <Database size={15} /> },
   { id: 'app-links',     label: 'App Links',     icon: <Smartphone size={15} /> },
   { id: 'sms',           label: 'SMS / OTP',     icon: <MessageSquare size={15} /> },
+  { id: 'booking-search', label: 'Booking Search', icon: <Search size={15} /> },
 ];
 
 // Reusable field — brand focus ring
@@ -2284,6 +2285,58 @@ no-stdout-log
                   . Create an OTP message template, get your Phone Number ID and generate a permanent access token from System Users.
                   If WhatsApp is disabled, OTPs will be sent via SMS (MSG91) or logged to console in dev mode.
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'booking-search' && (
+          <div className="p-6 space-y-6">
+            <div>
+              <h2 className="font-semibold text-[#2D2D2D]">Booking Wave Search</h2>
+              <p className="text-xs text-[#757575] mt-0.5">
+                Configure how the system expands the partner search radius over time when a booking is created
+              </p>
+            </div>
+
+            <div className="border border-[#E0E0E0] rounded-xl p-5 space-y-5">
+              <div>
+                <h3 className="font-semibold text-[#2D2D2D] text-sm">Wave Parameters</h3>
+                <p className="text-xs text-[#757575] mt-0.5">
+                  Search starts at 1 km and expands by 1 km every interval until the max radius is reached, then the booking is auto-cancelled
+                </p>
+              </div>
+
+              {/* Info banner */}
+              <div className="flex items-start gap-3 bg-[var(--light-purple)] border border-[color-mix(in_srgb,var(--primary)_20%,transparent)] rounded-xl px-4 py-3.5">
+                <Search size={15} className="text-[var(--primary)] mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-[var(--primary)]">
+                  <strong>Total search window</strong> = Wave Interval × Max Radius. For example, 30 s × 5 km = 150 s (~2.5 min).
+                  After this window the booking is automatically cancelled and the customer is notified.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <Field
+                  label="Wave Interval (seconds)"
+                  group="booking_search"
+                  field="booking_search_wave_interval_seconds"
+                  type="number"
+                  placeholder="30"
+                  hint="How often the search radius expands by 1 km (default: 30 s)"
+                  get={get}
+                  set={set}
+                />
+                <Field
+                  label="Max Search Radius (km)"
+                  group="booking_search"
+                  field="booking_search_max_radius_km"
+                  type="number"
+                  placeholder="5"
+                  hint="Maximum radius before the booking is auto-cancelled (default: 5 km)"
+                  get={get}
+                  set={set}
+                />
               </div>
             </div>
           </div>

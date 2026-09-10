@@ -77,13 +77,29 @@ export async function GET(req: NextRequest) {
        WHERE deleted_at IS NULL
        ORDER BY sort_order ASC, id ASC`
     );
+
+    // Fetch assigned service area IDs for every category in one query
+    const areaAssignments = await query<{ category_id: number; service_area_id: number }[]>(
+      `SELECT category_id, service_area_id FROM category_service_areas`
+    );
+
+    // Build a map: category_id → service_area_id[]
+    const areaMap = new Map<number, number[]>();
+    for (const row of areaAssignments) {
+      const existing = areaMap.get(row.category_id) ?? [];
+      existing.push(row.service_area_id);
+      areaMap.set(row.category_id, existing);
+    }
+
     return NextResponse.json({
       success: true,
-      categories: rows.map((c) => ({ 
-        ...c, 
+      categories: rows.map((c) => ({
+        ...c,
         price_per_hour: parseFloat(c.price_per_hour),
-        icon_path: c.icon_path || null,
-        icon_color: c.icon_color || null,
+        icon_path:      c.icon_path  || null,
+        icon_color:     c.icon_color || null,
+        // Array of assigned service area IDs — empty means "available everywhere"
+        service_area_ids: areaMap.get(c.id) ?? [],
       })),
     });
   } catch (err) {
@@ -104,26 +120,34 @@ export async function POST(req: NextRequest) {
     let icon_color: string | null = null;
     let icon_path: string | null = null;
     let iconFile: File | null = null;
+    // Service area IDs to assign to this category (empty = available everywhere)
+    let service_area_ids: number[] = [];
 
     // Handle both JSON and multipart/form-data
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData();
-      name = formData.get('name') as string;
-      description = (formData.get('description') as string) || null;
+      name          = formData.get('name') as string;
+      description   = (formData.get('description') as string) || null;
       price_per_hour = parseFloat(formData.get('price_per_hour') as string);
-      bg_color = (formData.get('bg_color') as string) || '#F0F5FF';
-      border_color = (formData.get('border_color') as string) || '#6B9BFA';
-      is_active = formData.get('is_active') === 'true';
-      sort_order = parseInt(formData.get('sort_order') as string) || 0;
-      icon_color = (formData.get('icon_color') as string) || null;
-      iconFile = formData.get('icon') as File | null;
+      bg_color      = (formData.get('bg_color') as string) || '#F0F5FF';
+      border_color  = (formData.get('border_color') as string) || '#6B9BFA';
+      is_active     = formData.get('is_active') === 'true';
+      sort_order    = parseInt(formData.get('sort_order') as string) || 0;
+      icon_color    = (formData.get('icon_color') as string) || null;
+      iconFile      = formData.get('icon') as File | null;
+      // service_area_ids sent as JSON string in multipart
+      const areasRaw = formData.get('service_area_ids') as string | null;
+      if (areasRaw) {
+        try { service_area_ids = JSON.parse(areasRaw); } catch { service_area_ids = []; }
+      }
     } else {
       const body = await req.json();
       ({ name, description, price_per_hour, bg_color, border_color, is_active, sort_order, icon_color, icon_path } = body);
-      bg_color = bg_color || '#F0F5FF';
-      border_color = border_color || '#6B9BFA';
-      is_active = is_active !== false;
-      sort_order = sort_order ?? 0;
+      bg_color      = bg_color || '#F0F5FF';
+      border_color  = border_color || '#6B9BFA';
+      is_active     = is_active !== false;
+      sort_order    = sort_order ?? 0;
+      service_area_ids = Array.isArray(body.service_area_ids) ? body.service_area_ids.map(Number).filter(Boolean) : [];
     }
 
     if (!name || price_per_hour === undefined || price_per_hour === null) {
@@ -176,6 +200,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Save service area assignments (only if any were provided)
+    if (service_area_ids.length > 0) {
+      const placeholders = service_area_ids.map(() => '(?, ?)').join(', ');
+      const values = service_area_ids.flatMap((areaId) => [categoryId, areaId]);
+      await query(
+        `INSERT IGNORE INTO category_service_areas (category_id, service_area_id) VALUES ${placeholders}`,
+        values
+      );
+    }
+
     return NextResponse.json({ success: true, id: categoryId }, { status: 201 });
   } catch (err) {
     console.error('categories POST error:', err);
@@ -197,26 +231,38 @@ export async function PATCH(req: NextRequest) {
     let icon_color: string | undefined | null;
     let icon_path: string | undefined | null;
     let iconFile: File | null = null;
+    // undefined = not sent (don't touch assignments), array = replace assignments
+    let service_area_ids: number[] | undefined = undefined;
 
     // Handle both JSON and multipart/form-data
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData();
-      id = parseInt(formData.get('id') as string);
-      name = formData.get('name') as string | undefined;
-      description = formData.get('description') as string | undefined;
+      id            = parseInt(formData.get('id') as string);
+      name          = formData.get('name') as string | undefined;
+      description   = formData.get('description') as string | undefined;
       const priceStr = formData.get('price_per_hour') as string | undefined;
       price_per_hour = priceStr ? parseFloat(priceStr) : undefined;
-      bg_color = formData.get('bg_color') as string | undefined;
-      border_color = formData.get('border_color') as string | undefined;
+      bg_color      = formData.get('bg_color') as string | undefined;
+      border_color  = formData.get('border_color') as string | undefined;
       const activeStr = formData.get('is_active') as string | undefined;
-      is_active = activeStr !== undefined ? activeStr === 'true' : undefined;
+      is_active     = activeStr !== undefined ? activeStr === 'true' : undefined;
       const sortStr = formData.get('sort_order') as string | undefined;
-      sort_order = sortStr ? parseInt(sortStr) : undefined;
-      icon_color = formData.get('icon_color') as string | undefined | null;
-      iconFile = formData.get('icon') as File | null;
+      sort_order    = sortStr ? parseInt(sortStr) : undefined;
+      icon_color    = formData.get('icon_color') as string | undefined | null;
+      iconFile      = formData.get('icon') as File | null;
+      const areasRaw = formData.get('service_area_ids') as string | null;
+      if (areasRaw !== null) {
+        try { service_area_ids = JSON.parse(areasRaw); } catch { service_area_ids = []; }
+      }
     } else {
       const body = await req.json();
       ({ id, name, description, price_per_hour, bg_color, border_color, is_active, sort_order, icon_color, icon_path } = body);
+      // Only update assignments if the key was explicitly sent in the payload
+      if ('service_area_ids' in body) {
+        service_area_ids = Array.isArray(body.service_area_ids)
+          ? body.service_area_ids.map(Number).filter(Boolean)
+          : [];
+      }
     }
 
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -265,10 +311,32 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    if (fields.length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+    // Update category fields only if there are fields to update
+    if (fields.length > 0) {
+      values.push(id);
+      await query(`UPDATE categories SET ${fields.join(', ')} WHERE id = ?`, values);
+    } else if (service_area_ids === undefined) {
+      // Nothing to update at all
+      return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+    }
 
-    values.push(id);
-    await query(`UPDATE categories SET ${fields.join(', ')} WHERE id = ?`, values);
+    // Update service area assignments if explicitly provided
+    // Strategy: delete all existing assignments for this category, then re-insert
+    if (service_area_ids !== undefined) {
+      await query(
+        `DELETE FROM category_service_areas WHERE category_id = ?`,
+        [id]
+      );
+      if (service_area_ids.length > 0) {
+        const placeholders = service_area_ids.map(() => '(?, ?)').join(', ');
+        const areaValues = service_area_ids.flatMap((areaId) => [id, areaId]);
+        await query(
+          `INSERT IGNORE INTO category_service_areas (category_id, service_area_id) VALUES ${placeholders}`,
+          areaValues
+        );
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('categories PATCH error:', err);
